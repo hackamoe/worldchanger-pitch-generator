@@ -278,17 +278,32 @@ input[type="file"]{display:none;}
             <input type="text" id="brand-url" placeholder="e.g. technogym.com" oninput="debounceBrandPreview()" />
           </div>
           <!-- Brand preview -->
-          <div class="brand-preview-section" id="brand-preview-section" style="display:none">
-            <div class="preview-label">Brand References (used in image generation)</div>
+          <div class="brand-preview-section" id="brand-preview-section">
+            <div class="preview-label">Brand References — used in image generation</div>
             <div class="brand-preview-row">
               <div>
-                <div class="preview-label" style="margin-bottom:4px">Logo</div>
-                <div class="logo-preview-box" id="logo-preview-box"><span class="preview-loading">…</span></div>
+                <div class="preview-label" style="margin-bottom:4px">Logo <span style="color:var(--green);font-size:9px" id="logo-status-badge"></span></div>
+                <div class="logo-preview-box" id="logo-preview-box">
+                  <span class="preview-loading">Auto</span>
+                </div>
+                <label class="upload-label" for="logo-upload-input" style="margin-top:6px;width:64px;justify-content:center;font-size:9px;padding:4px 6px;">↑ Upload</label>
+                <input type="file" id="logo-upload-input" accept="image/*" onchange="handleManualUpload(this,'logo')" />
+                <button class="btn btn-danger" onclick="clearUpload('logo')" id="logo-clear-btn" style="display:none;margin-top:4px;width:64px;font-size:9px;padding:4px;">✕ Clear</button>
               </div>
               <div style="flex:1">
-                <div class="preview-label" style="margin-bottom:4px">Website Preview</div>
-                <div class="product-preview-box" id="product-preview-box"><span class="preview-loading">Loading…</span></div>
+                <div class="preview-label" style="margin-bottom:4px">Product Image <span style="color:var(--green);font-size:9px" id="product-status-badge"></span></div>
+                <div class="product-preview-box" id="product-preview-box">
+                  <span class="preview-loading">Auto</span>
+                </div>
+                <div style="display:flex;gap:6px;margin-top:6px;align-items:center;">
+                  <label class="upload-label" for="product-upload-input" style="font-size:9px;padding:4px 8px;">↑ Upload Product Image</label>
+                  <input type="file" id="product-upload-input" accept="image/*" onchange="handleManualUpload(this,'product')" />
+                  <button class="btn btn-danger" onclick="clearUpload('product')" id="product-clear-btn" style="display:none;font-size:9px;padding:4px 8px;">✕ Clear</button>
+                </div>
               </div>
+            </div>
+            <div style="font-size:10px;color:var(--text-dim);margin-top:8px;line-height:1.6">
+              Auto = fetched from website URL · Upload overrides auto · ✓ green = will be sent to gpt-image-1
             </div>
           </div>
           <div class="field">
@@ -789,61 +804,118 @@ function debounceBrandPreview() {
   brandPreviewTimer = setTimeout(loadBrandPreview, 900);
 }
 
+// ═══════════════════════════════════════════
+// BRAND REFERENCES — manual upload + auto fetch
+// ═══════════════════════════════════════════
+let logoManualB64 = null;   // set when user uploads manually
+let productManualB64 = null; // set when user uploads manually
+
+function handleManualUpload(input, type) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const b64 = e.target.result.split(',')[1];
+    const dataUrl = e.target.result;
+    if (type === 'logo') {
+      logoManualB64 = b64;
+      logoB64 = b64;
+      document.getElementById('logo-preview-box').innerHTML = `<img src="${dataUrl}" style="max-width:56px;max-height:56px;object-fit:contain;padding:4px;" />`;
+      document.getElementById('logo-status-badge').textContent = '✓ uploaded';
+      document.getElementById('logo-clear-btn').style.display = 'block';
+    } else {
+      productManualB64 = b64;
+      productB64 = b64;
+      document.getElementById('product-preview-box').innerHTML = `<img src="${dataUrl}" style="width:100%;max-height:120px;object-fit:cover;" />`;
+      document.getElementById('product-status-badge').textContent = '✓ uploaded';
+      document.getElementById('product-clear-btn').style.display = 'block';
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearUpload(type) {
+  if (type === 'logo') {
+    logoManualB64 = null;
+    logoB64 = null;
+    document.getElementById('logo-preview-box').innerHTML = '<span class="preview-loading">Auto</span>';
+    document.getElementById('logo-status-badge').textContent = '';
+    document.getElementById('logo-clear-btn').style.display = 'none';
+    document.getElementById('logo-upload-input').value = '';
+    // Re-trigger auto fetch
+    loadBrandPreview();
+  } else {
+    productManualB64 = null;
+    productB64 = null;
+    document.getElementById('product-preview-box').innerHTML = '<span class="preview-loading">Auto</span>';
+    document.getElementById('product-status-badge').textContent = '';
+    document.getElementById('product-clear-btn').style.display = 'none';
+    document.getElementById('product-upload-input').value = '';
+    loadBrandPreview();
+  }
+}
+
 async function loadBrandPreview() {
   const url = gv('brand-url');
   if (!url || url.length < 4) return;
   const domain = url.replace(/https?:\/\//,'').split('/')[0].trim();
   if (!domain.includes('.')) return;
 
-  document.getElementById('brand-preview-section').style.display = 'block';
-  logoB64 = null; productB64 = null;
+  // Only auto-fetch if no manual upload present
+  if (!logoManualB64) {
+    const logoUrl = `https://logo.clearbit.com/${domain}`;
+    const logoBox = document.getElementById('logo-preview-box');
+    logoBox.innerHTML = `<img src="${logoUrl}" style="max-width:56px;max-height:56px;object-fit:contain;padding:4px;"
+      onerror="this.parentElement.innerHTML='<span class=preview-loading>No logo</span>'"
+      onload="logoAutoLoaded(this,'${logoUrl}')" />`;
+  }
 
-  // Logo via Clearbit — show directly, try b64 in background
-  const logoUrl = `https://logo.clearbit.com/${domain}`;
-  const logoBox = document.getElementById('logo-preview-box');
-  logoBox.innerHTML = `<img src="${logoUrl}" style="max-width:56px;max-height:56px;object-fit:contain;padding:4px;" onerror="this.parentElement.innerHTML='<span class=preview-loading>No logo</span>'" onload="logoLoaded('${logoUrl}')" />`;
-
-  // Website screenshot via Microlink
-  const productBox = document.getElementById('product-preview-box');
-  productBox.innerHTML = '<span class="preview-loading">Loading…</span>';
-  try {
-    const mlUrl = `https://api.microlink.io/?url=${encodeURIComponent('https://'+domain)}&screenshot=true&meta=false&embed=screenshot.url`;
-    const resp = await fetch(mlUrl);
-    const data = await resp.json();
-    if (data?.data?.screenshot?.url) {
-      const imgUrl = data.data.screenshot.url;
-      productBox.innerHTML = `<img src="${imgUrl}" style="width:100%;max-height:120px;object-fit:cover;" onload="productLoaded('${imgUrl}')" />`;
-    } else {
-      productBox.innerHTML = '<span class="preview-loading">Screenshot unavailable</span>';
+  if (!productManualB64) {
+    const productBox = document.getElementById('product-preview-box');
+    productBox.innerHTML = '<span class="preview-loading">Loading…</span>';
+    try {
+      const mlUrl = `https://api.microlink.io/?url=${encodeURIComponent('https://'+domain)}&screenshot=true&meta=false&embed=screenshot.url`;
+      const resp = await fetch(mlUrl);
+      const data = await resp.json();
+      if (data?.data?.screenshot?.url) {
+        const imgUrl = data.data.screenshot.url;
+        productBox.innerHTML = `<img src="${imgUrl}" style="width:100%;max-height:120px;object-fit:cover;"
+          onload="productAutoLoaded(this,'${imgUrl}')" />`;
+      } else {
+        productBox.innerHTML = '<span class="preview-loading">No screenshot — upload manually ↑</span>';
+      }
+    } catch(e) {
+      productBox.innerHTML = '<span class="preview-loading">Failed — upload manually ↑</span>';
     }
-  } catch(e) {
-    productBox.innerHTML = '<span class="preview-loading">Screenshot failed</span>';
   }
 }
 
-// Convert img to b64 after it loads (via canvas — no CORS proxy needed)
-function logoLoaded(url) {
-  const img = new Image(); img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    try {
-      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-      c.getContext('2d').drawImage(img, 0, 0);
-      logoB64 = c.toDataURL('image/png').split(',')[1];
-    } catch(e) {}
-  };
-  img.src = url;
+function logoAutoLoaded(imgEl, url) {
+  if (logoManualB64) return; // manual takes priority
+  // Try canvas b64 (works if CORS allows)
+  try {
+    const c = document.createElement('canvas');
+    c.width = imgEl.naturalWidth || 200; c.height = imgEl.naturalHeight || 200;
+    c.getContext('2d').drawImage(imgEl, 0, 0);
+    logoB64 = c.toDataURL('image/png').split(',')[1];
+    document.getElementById('logo-status-badge').textContent = '✓ auto';
+  } catch(e) {
+    // CORS blocked — show hint to upload manually
+    document.getElementById('logo-status-badge').textContent = '⚠ upload for best results';
+  }
 }
 
-function productLoaded(url) {
-  const img = new Image(); img.crossOrigin = 'anonymous';
-  img.onload = () => {
-    try {
-      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-      c.getContext('2d').drawImage(img, 0, 0);
-      productB64 = c.toDataURL('image/jpeg').split(',')[1];
-    } catch(e) {}
-  };
-  img.src = url;
+function productAutoLoaded(imgEl, url) {
+  if (productManualB64) return;
+  try {
+    const c = document.createElement('canvas');
+    c.width = imgEl.naturalWidth || 800; c.height = imgEl.naturalHeight || 400;
+    c.getContext('2d').drawImage(imgEl, 0, 0);
+    productB64 = c.toDataURL('image/jpeg').split(',')[1];
+    document.getElementById('product-status-badge').textContent = '✓ auto';
+  } catch(e) {
+    document.getElementById('product-status-badge').textContent = '⚠ upload for best results';
+  }
 }
 
 function blobToB64(blob) {
@@ -1172,48 +1244,49 @@ async function generateIdeas() {
   setBtnLoading('gen-btn', 'Claude is thinking…');
   stat('gen-status','info','Generating ideas with Claude Sonnet 4.6…');
 
-  const prompt = `Du bist ein Sponsoring-Stratege für WorldChanger Days 2026 am Stanglwirt Kitzbühel.
+  const prompt = `You are a sponsorship strategist for WorldChanger Days 2026 at Hotel Stanglwirt, Kitzbühel.
 
 EVENT:
-- Hotel Stanglwirt, Kitzbühel, Österreich — 5-Sterne Alpenhotel
-- 800 VIP-Gäste: A-List Creator (Pamela Reif, Mario Götze, Heidi Klum), Unternehmer, CEOs, Athleten
-- 2 Tage: Tag 1 = Keynote Show K3 Congress + VIP Dinner Stanglwirt / Tag 2 = Experience Day Stanglwirt
-- Thema: Mental Health, Transformation, Peak Performance
-- Vibes: intim, authentisch, premium — KEIN Massenevent
+- Venue: Hotel Stanglwirt, Kitzbühel, Austria — one of Europe's top 5-star alpine hotels
+- 800 VIP guests: A-list creators (Pamela Reif, Mario Götze, Heidi Klum), entrepreneurs, CEOs, athletes
+- Day 1: Keynote show at K3 Congress Center + VIP Dinner at Stanglwirt
+- Day 2: Experience Day on Stanglwirt grounds
+- Theme: Mental health, transformation, peak performance
+- Vibe: Intimate, authentic, premium — NOT a mass event
 
 BRAND:
 Name: ${brandName}
 Website: ${brandUrl || '—'}
-DNA: ${brandDna || 'aus Brand ableiten'}
+DNA: ${brandDna || 'infer from brand name'}
 ${pkg ? `Package: ${pkg.name} (€${Number(pkg.price).toLocaleString()})` : ''}
-Typ-Präferenz: ${selectedType === 'AUTO' ? 'AUTO — wähle was am besten passt' : 'Typ ' + selectedType}
+Type preference: ${selectedType === 'AUTO' ? 'AUTO — pick best fit' : 'Type ' + selectedType}
 
-TYPEN (exakt einhalten):
-- TYP A: Produkt IS die Activation. Keine kreative Brücke nötig. Gäste nutzen das Produkt direkt. Beispiel: Blackroll → Recovery-Station nach dem Padel-Turnier. Blackroll-Rollen und Bälle liegen aus, Physio führt 10-Min Gruppen-Mobility durch.
-- TYP B: Produkt passt perfekt in einen Event-Moment mit kleinem kreativem Funken. Beispiel: Trek → offizieller Bike-Partner der Kitzbühel Morning Ride — Gäste fahren Trek-Bikes auf Alpenroute.
-- TYP C: Kreative Brücke nötig — aber ECHT, nicht erzwungen. Was berührt diese Marke emotional, das zu Mental Health/Transformation passt? Beispiel: iPuro → Duft-Sommelier weist jedem VIP beim Ankommen einen persönlichen WorldChanger-Duft zu.
+INTEGRATION TYPES:
+- TYPE A: Product IS the activation. No creative bridge needed. Guests use the product directly. Example: Blackroll → recovery station after padel tournament — rollers and balls laid out, physio leads 10-min group mobility session on court.
+- TYPE B: Product fits perfectly into an existing event moment with a small creative spark. Example: Trek → official bike partner for Kitzbühel morning ride — guests ride Trek bikes on alpine route.
+- TYPE C: Creative bridge needed — but GENUINE, not forced. What emotion does this brand touch that maps to transformation/mental health? Example: iPuro → scent sommelier assigns each VIP a personal WorldChanger scent based on what they want to change in their life.
 
-REGELN:
-- Kurz und konkret. KEINE langen Marketingtexte.
-- Concept = max 2 Sätze. Was passiert? Was macht der Gast?
-- Bridge = 1 kurzer Satz. Echt, nicht geschwollen.
-- Würde Pamela Reif das authentisch posten? Wenn nein → andere Idee.
-- Produkt muss physisch präsent und anfassbar sein — kein Banner, kein Logo-Aufsteller.
+RULES:
+- Short and concrete. NO marketing copy.
+- Concept = max 2 sentences. What happens? What does the guest do?
+- Bridge = 1 short sentence. Genuine, not fluffy.
+- Would Pamela Reif authentically post this? If no → different idea.
+- Product must be physically present and touchable — no banners, no logo stands.
 
 SLOTS:
 ${slotsText}
 
-Generate exactly 3 ideas in different slots, different types.
+Generate exactly 3 ideas in different slots, different types. ALL OUTPUT IN ENGLISH.
 
 Respond ONLY with this JSON array:
 [{
   "type": "A|B|C",
-  "slot": "exakter Slot-Name aus der Liste",
+  "slot": "exact slot name from list above",
   "name": "Short punchy name (3-5 words, no marketing speak)",
-  "concept": "Max 2 sentences: what happens concretely? What does the guest do/experience?",
-  "bridge": "1 sentence: genuine connection to mental health / transformation. No fluff.",
+  "concept": "Max 2 sentences: what happens concretely? What does the guest do?",
+  "bridge": "1 sentence: genuine link to mental health / transformation. No fluff.",
   "rationale": "1 sentence: why this brand, this slot.",
-  "imagePrompt": "1 specific person (no crowd), concrete action, ${brandName} products visible through shape/color/material only (no text no logo), exact Stanglwirt/Kitzbühel setting + time of day + light. End with: Shot on Hasselblad H6D 50c, 85mm f/1.8, editorial luxury event photography, photorealistic, anatomically correct — exactly two arms two legs five fingers per hand, no distortion, no extra limbs"
+  "imagePrompt": "Write a detailed photorealistic image prompt. Include: 1 specific person (not crowd), their exact appearance and action, ${brandName} product shapes/colors/materials visible (no text no logo), exact Stanglwirt alpine setting with specific architectural details, time of day and light direction. End with: Shot on Hasselblad H6D 50c, 85mm f/1.8, editorial luxury event photography, photorealistic, anatomically correct — exactly two arms two legs five fingers per hand, no distortion, no extra limbs"
 }]`;
 
 
@@ -1309,28 +1382,43 @@ async function proceedToImage() {
   document.getElementById('image-prompt').value = 'Crafting cinematic prompt with Claude…';
 
   let imgPrompt = selectedIdea.imagePrompt || '';
-  if (!imgPrompt || imgPrompt.length < 60) {
-    try {
-      imgPrompt = await callClaude(`Write a hyper-specific photorealistic AI image generation prompt for this brand activation.
+  // Always regenerate with Claude for best quality — the idea's imagePrompt is just a seed
+  try {
+    const locName = selectedLocIdx !== null ? locs[selectedLocIdx]?.name : null;
+    const locDesc = selectedLocIdx !== null ? locs[selectedLocIdx]?.desc : null;
 
-Brand: ${brandName} (${brandUrl || ''})
-Brand DNA: ${brandDna || 'infer from name'}
-Activation: ${selectedIdea.name}
-Concept: ${selectedIdea.concept}
+    imgPrompt = await callClaude(`Write an extremely specific, detailed photorealistic image generation prompt. This prompt will be sent to gpt-image-1 along with a reference photo of the exact location. Your prompt must tell the AI to place this specific brand activation INTO that exact location photo.
+
+LOCATION REFERENCE PHOTO: ${locName || 'Stanglwirt alpine hotel setting'}
+${locDesc ? `Location details: ${locDesc}` : ''}
+
+BRAND ACTIVATION TO VISUALIZE:
+Brand: ${brandName}
+Activation name: ${selectedIdea.name}
+What happens: ${selectedIdea.concept}
 Slot: ${selectedIdea.slot}
 
-RULES FOR ANATOMICALLY CORRECT, REALISTIC OUTPUT:
-1. Describe EXACTLY 1 person. Never "people" or "guests" — one specific individual.
-2. Describe them precisely: "a 29-year-old woman with shoulder-length dark hair, wearing a cream linen blouse and fitted beige trousers, relaxed and confident posture"
-3. Describe their EXACT action: not "enjoying" — "sitting cross-legged on a wooden deck chair, eyes closed, palms resting on knees, slight smile"
-4. Brand product: describe ONLY by visual appearance — shape, color, material, packaging silhouette. Example: "a tall cylindrical matte black device the size of a wine bottle" or "amber glass bottles with minimal white label". NEVER brand name or text.
-5. Setting: ultra-specific. "On the terrace of a 5-star alpine hotel, a panorama of the Kitzbühel Hahnenkamm mountain visible across a valley of green meadows, late afternoon light casting long warm shadows across stone-paved terrace"
-6. Camera: "Shot from hip height, slightly upward angle, 85mm focal length, f/1.8 shallow depth of field, background softly blurred"
-7. End with EXACTLY this closing: "Shot on Hasselblad H6D 50c, 85mm f/1.8, golden hour, editorial luxury event photography, photorealistic, anatomically correct — exactly two arms, two legs, five fingers per hand, natural human proportions, no distortion, no extra limbs, no floating elements"
-8. Max 200 words. Output the prompt ONLY.`, 400);
-    } catch(e) {
-      imgPrompt = `A 28-year-old athletic woman with dark hair, wearing premium casual athleisure, genuinely engaging with ${brandName} products — brand colors and product shapes visible, no text or logos. Stanglwirt luxury alpine hotel setting, Kitzbühel Hahnenkamm mountain panorama visible, late afternoon golden light. Shot from eye level, 85mm, f/1.8. Shot on Hasselblad H6D 50c, editorial luxury event photography, photorealistic, anatomically correct — exactly two arms, two legs, five fingers per hand, natural human proportions, no distortion, no extra limbs.`;
-    }
+WRITE THE PROMPT FOLLOWING THESE RULES EXACTLY:
+
+1. START with: "USE THE REFERENCE PHOTO AS THE EXACT BACKGROUND SCENE. Place the following into this exact location:"
+
+2. PERSON (exactly 1): Describe age (25-35), gender, specific hair, exact outfit with colors and materials. Be precise: "a 28-year-old woman with dark shoulder-length hair, wearing a fitted white linen tank top and high-waisted black sports leggings, barefoot"
+
+3. ACTION: Describe the exact body position and movement. Not "relaxing" — instead: "lying on her back across a black cylindrical foam roller positioned under her thoracic spine, arms crossed over chest, eyes closed, slight expression of relief"
+
+4. BRAND PRODUCT: Describe by shape, color, material, size only — NO brand name or text. Example: "matte black cylindrical foam rollers 30cm long, smaller orange spiky massage balls, arranged on a wooden slatted rack"
+
+5. PRODUCT PLACEMENT: Where exactly in the scene? "three foam rollers leaning against the court fence behind her, massage balls in a small wooden bowl on the bench courtside"
+
+6. LIGHTING: Exact quality, direction, color temperature. "Warm golden afternoon light at 4pm, long shadows stretching across the clay court surface, slight haze from mountain air"
+
+7. CAMERA: "Shot from standing height looking slightly down, 85mm, f/1.8, subject sharp, background softly blurred showing the mountain panorama"
+
+8. END with EXACTLY: "Shot on Hasselblad H6D 50c, 85mm f/1.8, editorial luxury event photography, photorealistic, ultra-detailed, anatomically correct — exactly two arms, two legs, five fingers per hand, natural human proportions, no distortion, no extra limbs, no floating elements, no text visible anywhere"
+
+Output the prompt ONLY. No preamble. Max 250 words.`, 500);
+  } catch(e) {
+    imgPrompt = `USE THE REFERENCE PHOTO AS THE EXACT BACKGROUND SCENE. Place the following into this exact location: A 28-year-old athletic woman with dark hair, wearing premium sports outfit, interacting directly with ${brandName} products — product shapes and colors clearly visible, no text no logos. The setting must match the reference photo exactly — same architecture, same light, same surface. Shot on Hasselblad H6D 50c, 85mm f/1.8, editorial luxury event photography, photorealistic, anatomically correct — exactly two arms, two legs, five fingers per hand, no distortion, no extra limbs.`;
   }
   document.getElementById('image-prompt').value = imgPrompt;
 }
@@ -1344,7 +1432,7 @@ function updateRefBar() {
   } else { document.getElementById('ref-logo-box').style.display = 'none'; }
   if (productB64) {
     document.getElementById('ref-product-box').style.display = 'block';
-    document.getElementById('ref-product-img').src = 'data:image/png;base64,' + productB64;
+    document.getElementById('ref-product-img').src = 'data:image/jpeg;base64,' + productB64;
     hasAny = true;
   } else { document.getElementById('ref-product-box').style.display = 'none'; }
   document.getElementById('ref-scene-box').style.display = 'none';
@@ -1390,53 +1478,110 @@ async function generateImage() {
   document.getElementById('img-actions').style.display = 'none';
   currentImageB64 = null;
 
-  // Enrich prompt with brand reference descriptions
-  const refParts = [];
-  if (logoB64) refParts.push('incorporate the brand logo colors and visual identity from the reference logo image');
-  if (productB64) refParts.push('use the exact product shapes, colors, and packaging silhouettes visible on the brand website');
-  if (selectedLocB64) refParts.push('replicate the EXACT architecture, setting, lighting conditions and atmosphere of the provided location reference photo');
+  // Build the final prompt — inject STRONG reference instructions
+  let finalPrompt = prompt;
 
-  const fullPrompt = refParts.length > 0
-    ? `${prompt}\n\nCRITICAL VISUAL REFERENCES TO FOLLOW: ${refParts.join('. ')}.`
-    : prompt;
+  if (selectedLocB64) {
+    // Tell the model exactly what to do with the location photo
+    finalPrompt = `USE THE PROVIDED REFERENCE PHOTO AS THE EXACT BASE SCENE. Replicate this specific location precisely: same architecture, same court surface, same mountain backdrop, same trees, same fencing, same lighting angle and color. DO NOT invent a generic alpine setting — reproduce THIS exact location.
+
+PLACE THIS ACTIVATION INTO THAT EXACT SCENE:
+${prompt}
+
+CRITICAL: The background, environment, and architecture must match the reference photo exactly. Only add the person and the brand products to the scene — everything else stays true to the reference.`;
+  }
+
+  if (logoB64) {
+    finalPrompt += `\n\nBRAND LOGO REFERENCE: Use the provided logo image to extract exact brand colors, visual identity, and style. Brand products in the scene must use EXACTLY these colors.`;
+  }
+
+  if (productB64) {
+    finalPrompt += `\n\nPRODUCT REFERENCE: Use the provided product image to see the exact product shapes, form factor, materials, and visual style. Reproduce these exact product shapes/colors in the scene — no text or logos visible.`;
+  }
 
   try {
-    const res = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${oaiKey}` },
-      body: JSON.stringify({ model:'gpt-image-1', prompt: fullPrompt, n:1, size:'1536x1024', quality:'high' })
-    });
+    let d;
 
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error?.message || `Error ${res.status}`);
+    // Use /edits endpoint when we have reference images (supports actual image input)
+    const hasRefs = selectedLocB64 || logoB64 || productB64;
+
+    if (hasRefs) {
+      // Build multipart form — use location photo as primary image reference
+      const formData = new FormData();
+      formData.append('model', 'gpt-image-1');
+      formData.append('prompt', finalPrompt);
+      formData.append('n', '1');
+      formData.append('size', '1536x1024');
+      formData.append('quality', 'high');
+
+      // Primary reference: location photo (most important for scene accuracy)
+      if (selectedLocB64) {
+        const locBlob = b64ToBlob(selectedLocB64, 'image/jpeg');
+        formData.append('image[]', locBlob, 'location_reference.jpg');
+      }
+
+      // Brand logo reference
+      if (logoB64) {
+        const logoBlob = b64ToBlob(logoB64, 'image/png');
+        formData.append('image[]', logoBlob, 'brand_logo.png');
+      }
+
+      // Product reference
+      if (productB64) {
+        const productBlob = b64ToBlob(productB64, 'image/jpeg');
+        formData.append('image[]', productBlob, 'product_reference.jpg');
+      }
+
+      const res = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${oaiKey}` },
+        body: formData
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        // Fallback to generations if edits fails (e.g. tier issue)
+        console.warn('Edits endpoint failed, falling back to generations:', err.error?.message);
+        d = await callGenerations(oaiKey, finalPrompt);
+      } else {
+        d = await res.json();
+      }
+    } else {
+      d = await callGenerations(oaiKey, finalPrompt);
     }
 
-    const d = await res.json();
-
-    if (d.data?.[0]?.b64_json) {
+    if (d?.data?.[0]?.b64_json) {
       currentImageB64 = d.data[0].b64_json;
       showImage('data:image/png;base64,' + currentImageB64);
       stat('img-status','success','Generated with gpt-image-1 ✓');
-    } else if (d.data?.[0]?.url) {
-      const imgUrl = d.data[0].url;
-      try {
-        const r = await fetch(imgUrl);
-        const blob = await r.blob();
-        currentImageB64 = await blobToB64(blob);
-        showImage('data:image/png;base64,' + currentImageB64);
-      } catch(e) {
-        showImage(imgUrl);
-      }
+    } else if (d?.data?.[0]?.url) {
+      showImage(d.data[0].url);
       stat('img-status','success','Generated with gpt-image-1 ✓');
     } else {
       throw new Error('No image data in response');
     }
   } catch(e) {
-    stat('img-status','error',`Error: ${e.message}. Check your OpenAI API Tier at platform.openai.com/settings/organization/limits`);
+    stat('img-status','error',`Error: ${e.message}`);
     document.getElementById('img-placeholder').style.display = 'flex';
   }
   setBtnReset('img-btn','Regenerate Image →');
+}
+
+async function callGenerations(oaiKey, prompt) {
+  const res = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${oaiKey}` },
+    body: JSON.stringify({ model: 'gpt-image-1', prompt, n: 1, size: '1536x1024', quality: 'high' })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || `HTTP ${res.status}`); }
+  return res.json();
+}
+
+function b64ToBlob(b64, mimeType) {
+  const bytes = atob(b64);
+  const arr = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+  return new Blob([arr], { type: mimeType });
 }
 
 function showImage(src) {
@@ -1665,6 +1810,7 @@ function copyAllFromDetail() {
 function resetGenerator() {
   generatedIdeas = []; selectedIdea = null; currentImageB64 = null;
   logoB64 = null; productB64 = null; selectedLocB64 = null; selectedLocIdx = null;
+  logoManualB64 = null; productManualB64 = null;
   ['brand-name','brand-url','brand-dna'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('brand-package').value = '';
   document.getElementById('brand-preview-section').style.display = 'none';
