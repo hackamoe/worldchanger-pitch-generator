@@ -1382,43 +1382,44 @@ async function proceedToImage() {
   document.getElementById('image-prompt').value = 'Crafting cinematic prompt with Claude…';
 
   let imgPrompt = selectedIdea.imagePrompt || '';
-  // Always regenerate with Claude for best quality — the idea's imagePrompt is just a seed
+  // Always regenerate with Claude for best quality
   try {
-    const locName = selectedLocIdx !== null ? locs[selectedLocIdx]?.name : null;
-    const locDesc = selectedLocIdx !== null ? locs[selectedLocIdx]?.desc : null;
+    const locName = selectedLocIdx !== null ? locs[selectedLocIdx]?.name : 'Stanglwirt Tennis Court';
+    const locDesc = selectedLocIdx !== null ? locs[selectedLocIdx]?.desc : 'Outdoor clay courts at Hotel Stanglwirt, Kitzbühel mountain panorama';
+    const hasLocPhoto = !!selectedLocB64;
+    const hasLogo = !!logoB64;
+    const hasProduct = !!productB64;
 
-    imgPrompt = await callClaude(`Write an extremely specific, detailed photorealistic image generation prompt. This prompt will be sent to gpt-image-1 along with a reference photo of the exact location. Your prompt must tell the AI to place this specific brand activation INTO that exact location photo.
+    imgPrompt = await callClaude(`You are briefing an AI image generator (gpt-image-1) to create a photorealistic event activation image.
 
-LOCATION REFERENCE PHOTO: ${locName || 'Stanglwirt alpine hotel setting'}
-${locDesc ? `Location details: ${locDesc}` : ''}
+CRITICAL CONTEXT:
+${hasLocPhoto ? `- I am providing a REFERENCE PHOTO of the exact location. The AI must use this as the base scene and build the activation into it.` : `- Location: ${locName} — ${locDesc}`}
+${hasLogo ? `- I am providing the BRAND LOGO as a reference image. Use the logo's colors and visual identity for all branded elements.` : ''}
+${hasProduct ? `- I am providing a PRODUCT REFERENCE IMAGE. Reproduce the exact product shapes, colors, and materials from this image.` : ''}
 
-BRAND ACTIVATION TO VISUALIZE:
+BRAND ACTIVATION TO BUILD:
 Brand: ${brandName}
-Activation name: ${selectedIdea.name}
-What happens: ${selectedIdea.concept}
-Slot: ${selectedIdea.slot}
+Activation: ${selectedIdea.name}
+What it is: ${selectedIdea.concept}
+Event slot: ${selectedIdea.slot}
 
-WRITE THE PROMPT FOLLOWING THESE RULES EXACTLY:
+YOUR TASK:
+Write a prompt in NATURAL SCENE-DESCRIPTION LANGUAGE — like briefing a photographer or film director. NOT technical camera specs.
 
-1. START with: "USE THE REFERENCE PHOTO AS THE EXACT BACKGROUND SCENE. Place the following into this exact location:"
+Style to follow: "In the reference photo you can see [location]. Using [brand] logo as reference, please build [describe what's happening naturally]. The activation is called [name]."
 
-2. PERSON (exactly 1): Describe age (25-35), gender, specific hair, exact outfit with colors and materials. Be precise: "a 28-year-old woman with dark shoulder-length hair, wearing a fitted white linen tank top and high-waisted black sports leggings, barefoot"
+Make it feel like a real scene that could be photographed. Describe:
+- What branded setup/structure exists (tent, station, rack, booth...)
+- What people are doing (2-4 people max, natural interactions)
+- What products are visible and how they're being used
+- The overall atmosphere and energy
 
-3. ACTION: Describe the exact body position and movement. Not "relaxing" — instead: "lying on her back across a black cylindrical foam roller positioned under her thoracic spine, arms crossed over chest, eyes closed, slight expression of relief"
+${hasLocPhoto ? 'START with: "In the reference photo you can see the location. Please build the following activation into this exact scene:"' : `START with: "At the ${locName} of Hotel Stanglwirt in Kitzbühel, Austria, with the Wilder Kaiser mountain panorama in the background:"`}
 
-4. BRAND PRODUCT: Describe by shape, color, material, size only — NO brand name or text. Example: "matte black cylindrical foam rollers 30cm long, smaller orange spiky massage balls, arranged on a wooden slatted rack"
+Keep it under 150 words. Natural language only. No camera specs. No "anatomically correct". Output the prompt ONLY.`, 400);
 
-5. PRODUCT PLACEMENT: Where exactly in the scene? "three foam rollers leaning against the court fence behind her, massage balls in a small wooden bowl on the bench courtside"
-
-6. LIGHTING: Exact quality, direction, color temperature. "Warm golden afternoon light at 4pm, long shadows stretching across the clay court surface, slight haze from mountain air"
-
-7. CAMERA: "Shot from standing height looking slightly down, 85mm, f/1.8, subject sharp, background softly blurred showing the mountain panorama"
-
-8. END with EXACTLY: "Shot on Hasselblad H6D 50c, 85mm f/1.8, editorial luxury event photography, photorealistic, ultra-detailed, anatomically correct — exactly two arms, two legs, five fingers per hand, natural human proportions, no distortion, no extra limbs, no floating elements, no text visible anywhere"
-
-Output the prompt ONLY. No preamble. Max 250 words.`, 500);
   } catch(e) {
-    imgPrompt = `USE THE REFERENCE PHOTO AS THE EXACT BACKGROUND SCENE. Place the following into this exact location: A 28-year-old athletic woman with dark hair, wearing premium sports outfit, interacting directly with ${brandName} products — product shapes and colors clearly visible, no text no logos. The setting must match the reference photo exactly — same architecture, same light, same surface. Shot on Hasselblad H6D 50c, 85mm f/1.8, editorial luxury event photography, photorealistic, anatomically correct — exactly two arms, two legs, five fingers per hand, no distortion, no extra limbs.`;
+    imgPrompt = `In the reference photo you can see the location. Please build the following activation into this exact scene: A ${brandName} branded pop-up station where 2-3 guests are actively using ${brandName} products. Use the brand logo colors and product shapes from the reference images. The activation is called "${selectedIdea.name}". ${selectedIdea.concept} Natural, authentic atmosphere — looks like a real luxury event photo.`;
   }
   document.getElementById('image-prompt').value = imgPrompt;
 }
