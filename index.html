@@ -468,6 +468,22 @@ input[type="file"]{display:none;}
         <div id="tpl-status"></div>
       </div>
       <div class="settings-section" style="grid-column:1/-1">
+        <div class="settings-title">API Keys</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Keys are stored locally in your browser only — never sent to any server.</div>
+        <div class="api-keys-grid">
+          <div class="field">
+            <label>Anthropic Key (Claude)</label>
+            <input type="password" id="settings-anth" placeholder="sk-ant-..." class="mono" />
+          </div>
+          <div class="field">
+            <label>OpenAI Key (gpt-image-1)</label>
+            <input type="password" id="settings-oai" placeholder="sk-..." class="mono" />
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="saveApiKeys()">Save Keys</button>
+        <div id="keys-status"></div>
+      </div>
+      <div class="settings-section" style="grid-column:1/-1">
         <div class="settings-title">Access Code</div>
         <div class="field" style="max-width:320px"><label>New Access Code</label><input type="password" id="new-pw" placeholder="Min. 6 characters" /></div>
         <button class="btn btn-secondary btn-sm" onclick="changePassword()">Update</button>
@@ -697,6 +713,23 @@ function doLogout() {
   document.getElementById('login-error').textContent = '';
 }
 
+function saveApiKeys() {
+  const anth = document.getElementById('settings-anth').value.trim();
+  const oai = document.getElementById('settings-oai').value.trim();
+  if (anth) localStorage.setItem('wc_anth', anth);
+  if (oai) localStorage.setItem('wc_oai', oai);
+  stat('keys-status', 'success', '✓ Keys saved. Ready to use.');
+}
+
+function prefillApiKeyFields() {
+  const anth = localStorage.getItem('wc_anth');
+  const oai = localStorage.getItem('wc_oai');
+  const sa = document.getElementById('settings-anth');
+  const so = document.getElementById('settings-oai');
+  if (sa && anth) sa.value = anth;
+  if (so && oai) so.value = oai;
+}
+
 async function changePassword() {
   const np = document.getElementById('new-pw').value.trim();
   if (!np || np.length < 6) { stat('pw-status','error','Min. 6 characters.'); return; }
@@ -738,7 +771,7 @@ async function showView(v, btn) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('view-' + v).classList.add('active');
   if (btn) btn.classList.add('active');
-  if (v === 'settings') { await loadAllSettings(); renderSettings(); renderTemplateEditors(); }
+  if (v === 'settings') { await loadAllSettings(); renderSettings(); renderTemplateEditors(); prefillApiKeyFields(); }
   if (v === 'portfolio') await renderPortfolio();
 }
 
