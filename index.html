@@ -1,0 +1,1648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorldChanger · Pitch Tool v3</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@400;500&display=swap');
+:root{
+  --black:#0a0a0a;--gold:#c9a84c;--gold-light:#e8c96e;--gold-dark:#8a6e2f;
+  --surface:#141414;--surface2:#1e1e1e;--surface3:#282828;
+  --border:#2a2a2a;--text:#f5f2ed;--text-muted:#7a7570;--text-dim:#4a4642;
+  --green:#4caf7a;--red:#e05555;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--black);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.6;min-height:100vh;}
+
+/* LOGIN */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--black);position:relative;overflow:hidden;}
+#login-screen::before{content:'WORLDCHANGER';position:absolute;font-family:'Bebas Neue',sans-serif;font-size:clamp(80px,15vw,200px);color:#111;letter-spacing:0.05em;white-space:nowrap;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;user-select:none;}
+.login-card{position:relative;z-index:2;width:440px;background:var(--surface);border:1px solid var(--border);padding:48px 40px;}
+.login-logo{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:0.15em;color:var(--gold);margin-bottom:4px;}
+.login-sub{color:var(--text-muted);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:32px;}
+.login-error{color:var(--red);font-size:12px;margin-top:8px;min-height:16px;}
+.api-keys-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+/* TOPBAR */
+#app{display:none;}
+.topbar{height:56px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 32px;position:sticky;top:0;z-index:100;}
+.topbar-logo{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:0.15em;color:var(--gold);}
+.topbar-nav{display:flex;gap:4px;}
+.nav-btn{background:none;border:none;color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;padding:8px 16px;cursor:pointer;transition:color 0.2s;border-bottom:2px solid transparent;}
+.nav-btn:hover{color:var(--text);}
+.nav-btn.active{color:var(--gold);border-bottom-color:var(--gold);}
+.logout-btn{background:none;border:1px solid var(--border);color:var(--text-muted);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;padding:6px 12px;cursor:pointer;transition:all 0.2s;}
+.logout-btn:hover{border-color:var(--text-muted);color:var(--text);}
+
+/* VIEWS */
+.view{display:none;padding:40px 32px;max-width:1200px;margin:0 auto;}
+.view.active{display:block;}
+.view-header{margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid var(--border);}
+.view-title{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:0.08em;color:var(--text);margin-bottom:4px;}
+.view-subtitle{color:var(--text-muted);font-size:13px;}
+
+/* LAYOUT */
+.gen-layout{display:grid;grid-template-columns:340px 1fr;gap:24px;align-items:start;}
+.output-panel{display:flex;flex-direction:column;gap:20px;}
+.panel{background:var(--surface);border:1px solid var(--border);padding:28px;}
+.panel-title{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+
+/* FIELDS */
+.field{margin-bottom:18px;}
+.field label{display:block;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;}
+.field input,.field select,.field textarea{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;transition:border-color 0.2s;appearance:none;}
+.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a7570' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;background-color:var(--surface2);padding-right:36px;}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--gold);}
+.field textarea{resize:vertical;min-height:72px;}
+.mono{font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.03em;}
+
+/* TYPE BADGES */
+.type-selector{display:flex;gap:8px;}
+.type-badge{flex:1;padding:10px 6px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:500;text-align:center;cursor:pointer;transition:all 0.15s;}
+.type-badge:hover{border-color:var(--gold-dark);color:var(--text);}
+.type-badge.selected{border-color:var(--gold);background:rgba(201,168,76,0.1);color:var(--gold);}
+.type-badge small{display:block;font-size:10px;color:var(--text-dim);margin-top:2px;}
+.type-badge.selected small{color:var(--gold-dark);}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 24px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;border:none;cursor:pointer;transition:all 0.2s;}
+.btn-primary{background:var(--gold);color:#0a0a0a;width:100%;}
+.btn-primary:hover{background:var(--gold-light);}
+.btn-primary:disabled{background:var(--surface3);color:var(--text-dim);cursor:not-allowed;}
+.btn-secondary{background:var(--surface3);color:var(--text);border:1px solid var(--border);}
+.btn-secondary:hover{border-color:var(--gold-dark);}
+.btn-ghost{background:none;color:var(--text-muted);border:1px solid var(--border);padding:8px 16px;font-size:11px;}
+.btn-ghost:hover{border-color:var(--text-muted);color:var(--text);}
+.btn-danger{background:none;color:var(--red);border:1px solid transparent;padding:6px 12px;font-size:11px;}
+.btn-danger:hover{border-color:var(--red);}
+.btn-sm{padding:8px 16px;font-size:11px;}
+.btn-row{display:flex;gap:10px;margin-top:16px;}
+.btn-row .btn{flex:1;}
+
+/* STEPS */
+.steps{display:flex;margin-bottom:24px;}
+.step{flex:1;padding:10px 16px;background:var(--surface2);border:1px solid var(--border);border-right:none;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-dim);}
+.step:last-child{border-right:1px solid var(--border);}
+.step.active{background:rgba(201,168,76,0.1);color:var(--gold);border-color:var(--gold-dark);}
+.step.done{color:var(--text-muted);}
+.step-num{font-family:'Bebas Neue',sans-serif;font-size:18px;line-height:1;display:block;margin-bottom:2px;}
+
+/* IDEAS */
+.ideas-grid{display:flex;flex-direction:column;gap:12px;}
+.idea-card{background:var(--surface2);border:1px solid var(--border);padding:20px;cursor:pointer;transition:all 0.2s;position:relative;}
+.idea-card:hover{border-color:var(--gold-dark);}
+.idea-card.selected{border-color:var(--gold);background:rgba(201,168,76,0.05);}
+.idea-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}
+.idea-number{font-family:'Bebas Neue',sans-serif;font-size:28px;color:var(--gold-dark);line-height:1;}
+.idea-card.selected .idea-number{color:var(--gold);}
+.idea-tags{display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
+.idea-slot-tag{font-size:10px;letter-spacing:0.08em;text-transform:uppercase;background:var(--surface3);color:var(--text-muted);padding:3px 8px;}
+.idea-type-tag{font-size:10px;letter-spacing:0.08em;text-transform:uppercase;background:rgba(201,168,76,0.1);color:var(--gold-dark);border:1px solid var(--gold-dark);padding:3px 8px;}
+.idea-name{font-weight:600;font-size:15px;margin-bottom:6px;color:var(--text);}
+.idea-concept{font-size:13px;color:var(--text-muted);line-height:1.5;margin-bottom:8px;}
+.idea-rationale{font-size:11px;color:var(--text-dim);margin-bottom:8px;font-style:italic;}
+.idea-bridge{font-size:11px;color:var(--gold-dark);border-left:2px solid var(--gold-dark);padding-left:10px;font-style:italic;}
+.idea-check{position:absolute;top:16px;right:16px;width:20px;height:20px;border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:transparent;}
+.idea-card.selected .idea-check{background:var(--gold);border-color:var(--gold);color:#0a0a0a;}
+.manual-box{background:var(--surface2);border:1px solid var(--border);padding:20px;margin-top:4px;}
+.manual-box-label{font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:14px;}
+
+/* BRAND PREVIEW */
+.brand-preview-section{margin-bottom:16px;}
+.preview-label{font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;}
+.brand-preview-row{display:flex;gap:12px;align-items:flex-start;}
+.logo-preview-box{width:64px;height:64px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
+.logo-preview-box img{max-width:100%;max-height:100%;object-fit:contain;padding:4px;}
+.product-preview-box{flex:1;background:var(--surface2);border:1px solid var(--border);overflow:hidden;min-height:64px;display:flex;align-items:center;justify-content:center;}
+.product-preview-box img{width:100%;max-height:120px;object-fit:cover;}
+.preview-loading{color:var(--text-dim);font-size:10px;text-align:center;padding:8px;}
+
+/* IMAGE PANEL */
+.location-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;}
+.loc-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);font-size:10px;padding:0 0 6px 0;text-align:center;cursor:pointer;transition:all 0.15s;overflow:hidden;}
+.loc-btn:hover{border-color:var(--gold-dark);}
+.loc-btn.selected{border-color:var(--gold);background:rgba(201,168,76,0.08);}
+.loc-btn-thumb{width:100%;height:44px;object-fit:cover;display:block;margin-bottom:4px;opacity:0.75;}
+.loc-btn.selected .loc-btn-thumb{opacity:1;}
+.loc-btn-no-thumb{width:100%;height:44px;background:var(--surface3);display:flex;align-items:center;justify-content:center;margin-bottom:4px;font-size:18px;color:var(--text-dim);}
+.loc-btn-name{padding:0 4px;line-height:1.3;color:var(--text-muted);}
+.loc-btn.selected .loc-btn-name{color:var(--gold);}
+.ref-images-bar{display:flex;gap:8px;margin-bottom:14px;}
+.ref-img-box{flex:1;border:1px solid var(--border);overflow:hidden;background:var(--surface2);}
+.ref-img-box img{width:100%;height:48px;object-fit:cover;display:block;}
+.ref-img-label{font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);padding:3px 6px;}
+.prompt-area{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:12px;outline:none;resize:vertical;min-height:90px;line-height:1.6;transition:border-color 0.2s;}
+.prompt-area:focus{border-color:var(--gold);}
+.model-badge{display:inline-block;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;background:rgba(201,168,76,0.08);border:1px solid var(--gold-dark);color:var(--gold);padding:3px 8px;margin-top:6px;}
+.img-placeholder{width:100%;aspect-ratio:16/9;background:var(--surface2);border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:12px;letter-spacing:0.08em;text-transform:uppercase;margin-top:16px;}
+.generated-image{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;border:1px solid var(--border);margin-top:16px;}
+.image-actions{display:flex;gap:10px;margin-top:12px;}
+
+/* OUTPUT */
+.copy-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.copy-box{background:var(--surface2);border:1px solid var(--border);padding:20px;}
+.copy-box-label{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold);margin-bottom:10px;}
+.copy-box-content{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:12px;min-height:80px;white-space:pre-wrap;border:1px dashed transparent;padding:4px;cursor:text;}
+.copy-box-content:focus{outline:none;border-color:var(--gold-dark);}
+.copy-actions{display:flex;gap:8px;flex-wrap:wrap;}
+.save-bar{background:rgba(201,168,76,0.06);border:1px solid var(--gold-dark);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:20px;}
+.save-bar-label{font-size:12px;color:var(--gold);}
+
+/* SETTINGS */
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.settings-section{background:var(--surface);border:1px solid var(--border);padding:28px;}
+.settings-title{font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.item-list{display:flex;flex-direction:column;gap:10px;}
+.item-row{background:var(--surface2);border:1px solid var(--border);padding:14px 16px;display:flex;align-items:flex-start;gap:12px;}
+.item-row-body{flex:1;}
+.item-row-name{font-weight:600;font-size:14px;margin-bottom:2px;}
+.item-row-meta{font-size:12px;color:var(--text-muted);}
+.item-row-actions{display:flex;gap:6px;flex-shrink:0;}
+.tags-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.tag{background:var(--surface3);border:1px solid var(--border);color:var(--text-muted);font-size:11px;padding:4px 10px;}
+.loc-thumb-sm{width:56px;height:36px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;}
+.photo-status-ok{font-size:11px;color:var(--green);margin-top:4px;}
+.photo-status-warn{font-size:11px;color:var(--gold-dark);margin-top:4px;}
+.upload-label{display:inline-flex;align-items:center;gap:6px;background:var(--surface3);border:1px solid var(--border);color:var(--text-muted);font-size:11px;padding:6px 12px;cursor:pointer;transition:all 0.2s;font-family:'DM Sans',sans-serif;letter-spacing:0.06em;text-transform:uppercase;}
+.upload-label:hover{border-color:var(--gold-dark);color:var(--text);}
+input[type="file"]{display:none;}
+.tpl-editor{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;padding:14px;outline:none;resize:vertical;min-height:90px;line-height:1.7;transition:border-color 0.2s;}
+.tpl-editor:focus{border-color:var(--gold);}
+.tpl-vars{font-size:11px;color:var(--text-dim);margin-top:8px;line-height:2.2;}
+.tpl-vars code{background:var(--surface3);padding:2px 6px;font-family:'DM Mono',monospace;color:var(--gold-dark);}
+
+/* PORTFOLIO */
+.portfolio-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;}
+.pitch-card{background:var(--surface);border:1px solid var(--border);overflow:hidden;transition:border-color 0.2s;position:relative;}
+.pitch-card:hover{border-color:var(--gold-dark);}
+.pitch-thumb{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;}
+.pitch-thumb-empty{width:100%;aspect-ratio:16/9;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--text-dim);font-size:11px;letter-spacing:0.1em;text-transform:uppercase;}
+.pitch-body{padding:20px;}
+.pitch-brand{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:0.08em;color:var(--gold);line-height:1;margin-bottom:4px;}
+.pitch-name{font-weight:600;font-size:14px;margin-bottom:8px;}
+.pitch-slot-tag{font-size:10px;letter-spacing:0.08em;text-transform:uppercase;background:var(--surface3);color:var(--text-muted);padding:3px 8px;display:inline-block;margin-bottom:10px;}
+.pitch-meta{font-size:12px;color:var(--text-muted);margin-bottom:14px;}
+.pitch-date{position:absolute;top:10px;right:10px;font-size:10px;color:var(--text-dim);background:rgba(0,0,0,0.65);padding:2px 7px;}
+.pitch-actions-row{display:flex;gap:8px;}
+.empty-state{text-align:center;padding:80px 40px;color:var(--text-muted);}
+.empty-icon{font-size:48px;margin-bottom:16px;opacity:0.3;}
+
+/* PITCH DETAIL MODAL */
+.pitch-detail{background:var(--surface);border:1px solid var(--border);padding:40px;width:820px;max-width:95vw;max-height:90vh;overflow-y:auto;}
+.pd-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;}
+.pd-brand{font-family:'Bebas Neue',sans-serif;font-size:38px;letter-spacing:0.08em;color:var(--gold);line-height:1;}
+.pd-name{font-weight:600;font-size:18px;margin-top:4px;}
+.pd-img{width:100%;aspect-ratio:16/9;object-fit:cover;border:1px solid var(--border);margin-bottom:24px;}
+.pd-section{margin-bottom:18px;}
+.pd-label{font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:6px;}
+.pd-content{font-size:14px;color:var(--text);line-height:1.6;white-space:pre-wrap;}
+.pd-content[contenteditable="true"]{outline:1px dashed var(--gold-dark);padding:6px;background:var(--surface2);cursor:text;min-height:40px;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;overflow-y:auto;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);padding:36px;width:540px;max-width:95vw;max-height:85vh;overflow-y:auto;}
+.modal-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:0.1em;margin-bottom:24px;color:var(--gold);}
+.modal-actions{display:flex;gap:10px;margin-top:24px;justify-content:flex-end;}
+
+/* MISC */
+.divider{border:none;border-top:1px solid var(--border);margin:20px 0;}
+.spinner{width:18px;height:18px;border:2px solid transparent;border-top-color:currentColor;border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.status-msg{font-size:12px;padding:10px 14px;margin-top:10px;}
+.status-msg.error{background:rgba(224,85,85,0.1);border:1px solid rgba(224,85,85,0.3);color:var(--red);}
+.status-msg.success{background:rgba(76,175,122,0.1);border:1px solid rgba(76,175,122,0.3);color:var(--green);}
+.status-msg.info{background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);color:var(--gold);}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">WorldChanger</div>
+    <div class="login-sub">Pitch Activation Tool · v3</div>
+    <div class="field" style="margin-bottom:10px">
+      <label>Access Code</label>
+      <input type="password" id="pw-input" placeholder="••••••••" class="mono" />
+    </div>
+    <div class="login-error" id="login-error"></div>
+    <div class="divider"></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;letter-spacing:0.06em;text-transform:uppercase;">API Keys (saved locally in browser)</div>
+    <div class="api-keys-grid">
+      <div class="field" style="margin-bottom:0">
+        <label>Anthropic Key</label>
+        <input type="password" id="login-anth" placeholder="sk-ant-..." class="mono" style="font-size:11px;" />
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label>OpenAI Key</label>
+        <input type="password" id="login-oai" placeholder="sk-..." class="mono" style="font-size:11px;" />
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()" style="margin-top:20px">Enter →</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo">WorldChanger</div>
+    <div class="topbar-nav">
+      <button class="nav-btn active" onclick="showView('generator',this)">Generator</button>
+      <button class="nav-btn" onclick="showView('portfolio',this)" id="nav-portfolio">Portfolio</button>
+      <button class="nav-btn" onclick="showView('settings',this)">Settings</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <button class="logout-btn" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- GENERATOR VIEW -->
+  <div class="view active" id="view-generator">
+    <div class="view-header">
+      <div class="view-title">Activation Generator</div>
+      <div class="view-subtitle">Brand → Claude Sonnet 4.6 ideas → gpt-image-1 cinematic image → formatted slide copy</div>
+    </div>
+    <div class="gen-layout">
+      <!-- LEFT -->
+      <div>
+        <div class="panel">
+          <div class="panel-title">Brand Input</div>
+          <div class="field">
+            <label>Brand Name *</label>
+            <input type="text" id="brand-name" placeholder="e.g. Technogym" />
+          </div>
+          <div class="field">
+            <label>Brand Website *</label>
+            <input type="text" id="brand-url" placeholder="e.g. technogym.com" oninput="debounceBrandPreview()" />
+          </div>
+          <!-- Brand preview -->
+          <div class="brand-preview-section" id="brand-preview-section" style="display:none">
+            <div class="preview-label">Brand References (used in image generation)</div>
+            <div class="brand-preview-row">
+              <div>
+                <div class="preview-label" style="margin-bottom:4px">Logo</div>
+                <div class="logo-preview-box" id="logo-preview-box"><span class="preview-loading">…</span></div>
+              </div>
+              <div style="flex:1">
+                <div class="preview-label" style="margin-bottom:4px">Website Preview</div>
+                <div class="product-preview-box" id="product-preview-box"><span class="preview-loading">Loading…</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label>Brand DNA <span style="color:var(--text-dim)">(optional)</span></label>
+            <textarea id="brand-dna" placeholder="e.g. Premium fitness equipment, performance culture, wellness..."></textarea>
+          </div>
+          <div class="field">
+            <label>Integration Type</label>
+            <div class="type-selector">
+              <div class="type-badge" onclick="selectType('A',this)">A<small>Natural</small></div>
+              <div class="type-badge" onclick="selectType('B',this)">B<small>Context</small></div>
+              <div class="type-badge" onclick="selectType('C',this)">C<small>Creative</small></div>
+              <div class="type-badge selected" onclick="selectType('AUTO',this)">AUTO<small>Claude decides</small></div>
+            </div>
+          </div>
+          <div class="field">
+            <label>Preferred Package</label>
+            <select id="brand-package"><option value="">— Select package —</option></select>
+          </div>
+          <button class="btn btn-primary" id="gen-btn" onclick="generateIdeas()">✦ Generate with Claude →</button>
+          <div id="gen-status"></div>
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="output-panel">
+        <div class="steps">
+          <div class="step active" id="step1"><span class="step-num">01</span>Ideas</div>
+          <div class="step" id="step2"><span class="step-num">02</span>Refine</div>
+          <div class="step" id="step3"><span class="step-num">03</span>Image</div>
+          <div class="step" id="step4"><span class="step-num">04</span>Output</div>
+        </div>
+
+        <!-- IDEAS PANEL -->
+        <div class="panel" id="ideas-panel">
+          <div class="panel-title">Activation Ideas · by Claude Sonnet 4.6</div>
+          <div class="ideas-grid" id="ideas-grid">
+            <div style="color:var(--text-dim);font-size:13px;padding:20px 0;text-align:center">Enter brand details and hit Generate →</div>
+          </div>
+          <div class="divider"></div>
+          <div class="manual-box-label">Or enter your own idea:</div>
+          <div class="manual-box">
+            <div class="field" style="margin-bottom:10px"><label>Activation Name</label><input type="text" id="manual-name" placeholder='e.g. "The Recovery Zone"' /></div>
+            <div class="field" style="margin-bottom:10px"><label>Concept</label><textarea id="manual-concept" style="min-height:60px" placeholder="Describe the activation..."></textarea></div>
+            <div class="field" style="margin-bottom:10px"><label>Mental Health Bridge</label><input type="text" id="manual-bridge" placeholder="e.g. Recovery = peak performance" /></div>
+            <div class="field" style="margin-bottom:0"><label>Integration Slot</label><select id="manual-slot"><option value="">— Select slot —</option></select></div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="useManualIdea()" style="margin-top:12px;width:100%">Use My Idea →</button>
+        </div>
+
+        <!-- REFINE PANEL -->
+        <div class="panel" id="refine-panel" style="display:none">
+          <div class="panel-title">Selected Activation — Refine if needed</div>
+          <div class="field"><label>Activation Name</label><input type="text" id="final-name" /></div>
+          <div class="field"><label>Concept</label><textarea id="final-concept" style="min-height:100px"></textarea></div>
+          <div class="field"><label>Mental Health Bridge</label><input type="text" id="final-bridge" /></div>
+          <div class="field"><label>Integration Slot</label><select id="final-slot"><option value="">— Select slot —</option></select></div>
+          <div class="btn-row">
+            <button class="btn btn-secondary" onclick="goBackToIdeas()">← Back</button>
+            <button class="btn btn-primary" onclick="proceedToImage()">Proceed to Image →</button>
+          </div>
+        </div>
+
+        <!-- IMAGE PANEL -->
+        <div class="panel" id="image-panel" style="display:none">
+          <div class="panel-title">Image Generation · gpt-image-1</div>
+          <div class="ref-images-bar" id="ref-images-bar" style="display:none">
+            <div class="ref-img-box" id="ref-logo-box" style="display:none">
+              <div class="ref-img-label">Brand Logo</div>
+              <img id="ref-logo-img" src="" alt="logo" />
+            </div>
+            <div class="ref-img-box" id="ref-product-box" style="display:none">
+              <div class="ref-img-label">Website</div>
+              <img id="ref-product-img" src="" alt="product" />
+            </div>
+            <div class="ref-img-box" id="ref-scene-box" style="display:none">
+              <div class="ref-img-label">Scene Ref</div>
+              <img id="ref-scene-img" src="" alt="scene" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Location</label>
+            <div class="location-grid" id="location-grid"></div>
+          </div>
+          <div class="field">
+            <label>Image Prompt <span style="color:var(--text-dim)">(editable)</span></label>
+            <textarea class="prompt-area" id="image-prompt" rows="5"></textarea>
+            <div class="model-badge" id="model-badge">gpt-image-1 · HD 1536×1024</div>
+          </div>
+          <button class="btn btn-primary" id="img-btn" onclick="generateImage()">Generate Image →</button>
+          <div id="img-status"></div>
+          <div class="img-placeholder" id="img-placeholder">Image will appear here</div>
+          <img class="generated-image" id="generated-img" style="display:none" alt="Generated activation" />
+          <div class="image-actions" id="img-actions" style="display:none">
+            <button class="btn btn-secondary btn-sm" onclick="downloadImage()">↓ Download</button>
+            <button class="btn btn-primary btn-sm" onclick="proceedToOutput()">Continue to Output →</button>
+          </div>
+        </div>
+
+        <!-- OUTPUT PANEL -->
+        <div class="panel" id="output-panel" style="display:none">
+          <div class="panel-title">Slide Copy — Formatted for Canva</div>
+          <div class="copy-grid">
+            <div class="copy-box">
+              <div class="copy-box-label">Slide 12 · Activation Concept</div>
+              <div class="copy-box-content" id="out-slide12" contenteditable="true">—</div>
+              <div class="copy-actions"><button class="btn btn-ghost" onclick="copyField('out-slide12',this)">Copy</button></div>
+            </div>
+            <div class="copy-box">
+              <div class="copy-box-label">Slide 13 · Experience</div>
+              <div class="copy-box-content" id="out-slide13" contenteditable="true">—</div>
+              <div class="copy-actions"><button class="btn btn-ghost" onclick="copyField('out-slide13',this)">Copy</button></div>
+            </div>
+            <div class="copy-box" style="grid-column:1/-1">
+              <div class="copy-box-label">Slide 14 · Package Summary</div>
+              <div class="copy-box-content" id="out-slide14" contenteditable="true">—</div>
+              <div class="copy-actions">
+                <button class="btn btn-ghost" onclick="copyField('out-slide14',this)">Copy</button>
+                <button class="btn btn-ghost" onclick="copyAllSlides(this)">📋 Copy All</button>
+              </div>
+            </div>
+          </div>
+          <div class="save-bar">
+            <div class="save-bar-label">💾 Save to Portfolio — stored in Supabase, accessible anywhere</div>
+            <button class="btn btn-secondary btn-sm" id="save-btn" onclick="savePitch()">Save →</button>
+          </div>
+          <div id="save-status"></div>
+          <button class="btn btn-secondary" onclick="resetGenerator()" style="margin-top:20px">← New Pitch</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PORTFOLIO VIEW -->
+  <div class="view" id="view-portfolio">
+    <div class="view-header">
+      <div class="view-title">Pitch Portfolio</div>
+      <div class="view-subtitle">All saved pitches from Supabase — click to open, edit, copy</div>
+    </div>
+    <div id="portfolio-container"></div>
+  </div>
+
+  <!-- SETTINGS VIEW -->
+  <div class="view" id="view-settings">
+    <div class="view-header">
+      <div class="view-title">Settings</div>
+      <div class="view-subtitle">Packages · Slots · Locations with real reference photos · Slide Templates</div>
+    </div>
+    <div class="settings-grid">
+      <div class="settings-section">
+        <div class="settings-title">Sponsorship Packages</div>
+        <div class="item-list" id="packages-list"></div>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('pkg',null)" style="margin-top:16px;width:100%">+ Add Package</button>
+      </div>
+      <div class="settings-section">
+        <div class="settings-title">Integration Slots</div>
+        <div class="item-list" id="slots-list"></div>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('slot',null)" style="margin-top:16px;width:100%">+ Add Slot</button>
+      </div>
+      <div class="settings-section" style="grid-column:1/-1">
+        <div class="settings-title">Reference Locations + Real Photos</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Upload actual Stanglwirt / Kitzbühel photos. Passed directly to gpt-image-1 — the model sees the exact setting and replicates it.</div>
+        <div class="item-list" id="locations-list"></div>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('loc',null)" style="margin-top:16px">+ Add Location</button>
+      </div>
+      <div class="settings-section" style="grid-column:1/-1">
+        <div class="settings-title">Slide Copy Templates</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:20px">Define exact format for each slide. AI-generated copy is injected via variables.</div>
+        <div class="field"><label>Slide 12</label><textarea class="tpl-editor" id="tpl-12"></textarea></div>
+        <div class="field"><label>Slide 13</label><textarea class="tpl-editor" id="tpl-13"></textarea></div>
+        <div class="field"><label>Slide 14</label><textarea class="tpl-editor" id="tpl-14"></textarea></div>
+        <div class="tpl-vars">Variables: <code>{{brand}}</code> <code>{{activation}}</code> <code>{{concept}}</code> <code>{{bridge}}</code> <code>{{slot}}</code> <code>{{package}}</code> <code>{{price}}</code> <code>{{rooms}}</code> <code>{{tickets}}</code> <code>{{benefits}}</code> <code>{{slide12}}</code> <code>{{slide13}}</code></div>
+        <div class="btn-row" style="margin-top:20px">
+          <button class="btn btn-secondary" onclick="resetTemplates()">Reset to Default</button>
+          <button class="btn btn-primary" onclick="saveTemplates()">Save Templates</button>
+        </div>
+        <div id="tpl-status"></div>
+      </div>
+      <div class="settings-section" style="grid-column:1/-1">
+        <div class="settings-title">Access Code</div>
+        <div class="field" style="max-width:320px"><label>New Access Code</label><input type="password" id="new-pw" placeholder="Min. 6 characters" /></div>
+        <button class="btn btn-secondary btn-sm" onclick="changePassword()">Update</button>
+        <div id="pw-status"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-pkg">
+  <div class="modal">
+    <div class="modal-title" id="pkg-title">Add Package</div>
+    <input type="hidden" id="pkg-idx" value="-1" />
+    <div class="field"><label>Name</label><input type="text" id="pkg-name" /></div>
+    <div class="field"><label>Price (€)</label><input type="number" id="pkg-price" /></div>
+    <div class="field"><label>Hotel Rooms</label><input type="number" id="pkg-rooms" /></div>
+    <div class="field"><label>VIP Tickets</label><input type="number" id="pkg-tickets" /></div>
+    <div class="field"><label>Benefits (one per line)</label><textarea id="pkg-benefits" style="min-height:100px"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-pkg')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="savePackage()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-slot">
+  <div class="modal">
+    <div class="modal-title" id="slot-title">Add Slot</div>
+    <input type="hidden" id="slot-idx" value="-1" />
+    <div class="field"><label>Slot Name</label><input type="text" id="slot-name" /></div>
+    <div class="field"><label>Day / Time</label><input type="text" id="slot-time" /></div>
+    <div class="field"><label>Description</label><textarea id="slot-desc"></textarea></div>
+    <div class="field">
+      <label>Best For</label>
+      <div style="display:flex;gap:12px;margin-top:4px">
+        <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;cursor:pointer"><input type="checkbox" id="st-a"> Type A</label>
+        <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;cursor:pointer"><input type="checkbox" id="st-b"> Type B</label>
+        <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;cursor:pointer"><input type="checkbox" id="st-c"> Type C</label>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-slot')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveSlot()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-loc">
+  <div class="modal">
+    <div class="modal-title" id="loc-title">Add Location</div>
+    <input type="hidden" id="loc-idx" value="-1" />
+    <div class="field"><label>Location Name</label><input type="text" id="loc-name" /></div>
+    <div class="field"><label>Description (AI context)</label><textarea id="loc-desc"></textarea></div>
+    <div class="field">
+      <label>Reference Photo <span style="color:var(--text-dim)">(passed to gpt-image-1)</span></label>
+      <div style="margin-top:8px">
+        <label class="upload-label" for="loc-photo-input">📷 Upload Photo</label>
+        <input type="file" id="loc-photo-input" accept="image/*" onchange="handleLocPhoto(this)" />
+      </div>
+      <div id="loc-photo-preview" style="display:none;margin-top:10px">
+        <img id="loc-photo-img" src="" style="width:100%;max-height:140px;object-fit:cover;border:1px solid var(--border);" />
+        <button class="btn btn-danger btn-sm" onclick="clearLocPhoto()" style="margin-top:6px">Remove</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modal-loc')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveLocation()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-pitch">
+  <div class="pitch-detail">
+    <div class="pd-header">
+      <div><div class="pd-brand" id="pd-brand"></div><div class="pd-name" id="pd-name"></div></div>
+      <button class="btn btn-ghost" onclick="closeModal('modal-pitch')">× Close</button>
+    </div>
+    <img class="pd-img" id="pd-img" style="display:none" />
+    <div class="pd-section"><div class="pd-label">Slot</div><div class="pd-content" id="pd-slot"></div></div>
+    <div class="pd-section"><div class="pd-label">Concept</div><div class="pd-content" id="pd-concept" contenteditable="true"></div></div>
+    <div class="pd-section"><div class="pd-label">Mental Health Bridge</div><div class="pd-content" id="pd-bridge" contenteditable="true"></div></div>
+    <div class="divider"></div>
+    <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold);margin-bottom:16px">Slide Copy</div>
+    <div class="pd-section"><div class="pd-label">Slide 12</div><div class="pd-content" id="pd-s12" contenteditable="true"></div></div>
+    <div class="pd-section"><div class="pd-label">Slide 13</div><div class="pd-content" id="pd-s13" contenteditable="true"></div></div>
+    <div class="pd-section"><div class="pd-label">Slide 14</div><div class="pd-content" id="pd-s14" contenteditable="true"></div></div>
+    <div class="btn-row" style="margin-top:24px">
+      <button class="btn btn-secondary" onclick="savePitchEdits()">Save Edits</button>
+      <button class="btn btn-ghost" onclick="deletePitchFromDetail()">Delete</button>
+      <button class="btn btn-primary" onclick="copyAllFromDetail()">📋 Copy All</button>
+    </div>
+    <div id="pd-status"></div>
+  </div>
+</div>
+<script>
+// ═══════════════════════════════════════════
+// SUPABASE
+// ═══════════════════════════════════════════
+const SB_URL = 'https://ojwgyvbiviutjpeskccg.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qd2d5dmJpdml1dGpwZXNrY2NnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMjY2ODgsImV4cCI6MjA4NzgwMjY4OH0.fglid52YgqnuBSGtNvIIZgOHw9M1qatYbJYVZoaAvR0';
+
+async function sbFetch(path, opts = {}) {
+  const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      'apikey': SB_KEY,
+      'Authorization': `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': opts.prefer || 'return=representation',
+      ...(opts.headers || {})
+    }
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Supabase: ${text}`);
+  return text ? JSON.parse(text) : null;
+}
+
+async function getSetting(key) {
+  try {
+    const rows = await sbFetch(`settings?key=eq.${encodeURIComponent(key)}&select=value`);
+    return rows && rows[0] ? rows[0].value : null;
+  } catch(e) { return null; }
+}
+
+async function setSetting(key, value) {
+  await sbFetch('settings', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates',
+    body: JSON.stringify({ key, value })
+  });
+}
+
+// ═══════════════════════════════════════════
+// DEFAULTS
+// ═══════════════════════════════════════════
+const DEFAULT_PW = 'worldchanger2026';
+
+const DEFAULT_PACKAGES = [
+  { name:'Title Sponsor', price:150000, rooms:3, tickets:6, benefits:['Naming rights ("WorldChanger Days by [Brand]")','Exclusive keynote 30 min','250 VIP product seeding','Co-branded VVIP gift','Full content pool access','Hosted table at VIP Dinner'] },
+  { name:'Gold Partner', price:60000, rooms:2, tickets:4, benefits:['Branded activation slot','Logo on all event materials','170 VIP product seeding','Co-branded VVIP item','Content pool access','2 DZ Stanglwirt'] },
+  { name:'Silver Partner', price:30000, rooms:1, tickets:2, benefits:['Branded presence / one slot','Logo on event materials','80 VIP product seeding','Content pool access'] },
+  { name:'Official Supplier', price:15000, rooms:0, tickets:2, benefits:['Product placement / functional integration','Logo mention','Social media thank-you'] }
+];
+
+const DEFAULT_SLOTS = [
+  { name:'Show Naming Sponsor', time:'Sunday, 14:00–19:00', desc:'Official naming rights for WorldChanger Show at K3', types:['A','B','C'] },
+  { name:'Show Foyer Exhibition', time:'Sunday, 14:00–19:00', desc:'Exhibition stand in congress foyer during intermissions', types:['A','B'] },
+  { name:'Sunday Evening Dinner', time:'Sunday, 20:00–23:00', desc:'Klassentreffen VIP Dinner at Stanglwirt – food, décor, or entertainment', types:['A','C'] },
+  { name:'Monday Morning Side Program', time:'Monday, 09:00–11:00', desc:'Yoga, cycling tour, wellness activities – branded experience', types:['B','C'] },
+  { name:'Stamp Card Challenge Station', time:'Monday, 12:00–18:00', desc:'Core branded challenge or experience station on Experience Day', types:['B','C'] },
+  { name:'Padel Tournament', time:'Monday, 12:00–16:00', desc:'Naming or equipment partner for WorldChanger Padel', types:['A','B'] },
+  { name:'FIFA World Cup Public Viewing', time:'Monday, 18:00–21:00', desc:'Casual evening – naming or food/beverage integration', types:['A','C'] },
+  { name:'Food Market & Trachtenparty', time:'Monday, 19:00–23:00', desc:'Tyrolean evening – sampling, gifting, branded stand', types:['A','B'] },
+  { name:'Afterparty · Boiler Room Setup', time:'Monday, 23:00+', desc:'Premium night event – drinks, energy, exclusive brand moment', types:['C'] }
+];
+
+const DEFAULT_LOCATIONS = [
+  { name:'Stanglwirt Tennis Court', desc:'Outdoor clay courts at Hotel Stanglwirt, Kitzbühel mountain panorama, golden afternoon light, summer alpine.', photo_b64:null },
+  { name:'Stanglwirt Dinner Hall', desc:'Elegant indoor dining hall, rustic alpine luxury, wooden beams, candlelight, floral arrangements, evening atmosphere.', photo_b64:null },
+  { name:'K3 Congress Center Stage', desc:'Modern event stage inside K3 Congress Kitzbühel, dramatic lighting, WorldChanger branded backdrop, 500 seated guests.', photo_b64:null },
+  { name:'Stanglwirt Garden', desc:'Lush hotel garden grounds with mountain views, outdoor market/festival atmosphere, tents, people socializing, summer.', photo_b64:null },
+  { name:'Kitzbühel Mountain Trail', desc:'Alpine mountain trail above Kitzbühel, Austrian Alps, summer, forest and open meadow, sweeping panoramic views.', photo_b64:null },
+  { name:'Stanglwirt Spa', desc:'Premium wellness spa at Stanglwirt, serene, minimal, natural stone and wood, soft indirect light.', photo_b64:null }
+];
+
+const DEFAULT_TEMPLATES = {
+  s12: '{{activation}}\n\n{{slide12}}\n\nIntegration Slot: {{slot}}',
+  s13: '{{slide13}}\n\n"{{bridge}}"',
+  s14: '{{brand}} × WorldChanger Days 2026\nPackage: {{package}} · €{{price}}\n{{rooms}} hotel rooms · {{tickets}} VIP tickets\n\nKey Benefits:\n{{benefits}}'
+};
+
+// ═══════════════════════════════════════════
+// RUNTIME STATE
+// ═══════════════════════════════════════════
+let selectedType = 'AUTO';
+let generatedIdeas = [];
+let selectedIdea = null;
+let currentImageB64 = null;
+let currentPitchId = null;
+let locPhotoB64 = null;
+let logoB64 = null;
+let productB64 = null;
+let selectedLocB64 = null;
+let brandPreviewTimer = null;
+
+// Cached Supabase settings
+let pkgs = [];
+let slots = [];
+let locs = [];
+let tpls = { ...DEFAULT_TEMPLATES };
+
+// ═══════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════
+window.addEventListener('load', () => {
+  const a = localStorage.getItem('wc_anth');
+  const o = localStorage.getItem('wc_oai');
+  if (a) document.getElementById('login-anth').value = a;
+  if (o) document.getElementById('login-oai').value = o;
+  document.getElementById('pw-input').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+});
+
+async function doLogin() {
+  const pw = document.getElementById('pw-input').value.trim();
+  const anth = document.getElementById('login-anth').value.trim();
+  const oai = document.getElementById('login-oai').value.trim();
+  if (!pw) { document.getElementById('login-error').textContent = 'Enter access code.'; return; }
+  if (anth) localStorage.setItem('wc_anth', anth);
+  if (oai) localStorage.setItem('wc_oai', oai);
+  let storedPw = await getSetting('password');
+  if (!storedPw) storedPw = DEFAULT_PW;
+  if (pw === storedPw) {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    await initApp();
+  } else {
+    document.getElementById('login-error').textContent = 'Incorrect access code.';
+    document.getElementById('pw-input').value = '';
+  }
+}
+
+function doLogout() {
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('pw-input').value = '';
+  document.getElementById('login-error').textContent = '';
+}
+
+async function changePassword() {
+  const np = document.getElementById('new-pw').value.trim();
+  if (!np || np.length < 6) { stat('pw-status','error','Min. 6 characters.'); return; }
+  await setSetting('password', np);
+  document.getElementById('new-pw').value = '';
+  stat('pw-status','success','Access code updated in Supabase.');
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+async function initApp() {
+  stat('gen-status','info','Loading settings from Supabase…');
+  await loadAllSettings();
+  renderPackageSelect();
+  renderSlotSelects();
+  renderLocationGrid();
+  renderSettings();
+  renderTemplateEditors();
+  updatePortfolioTab();
+  document.getElementById('gen-status').innerHTML = '';
+}
+
+async function loadAllSettings() {
+  const [p, s, l, t] = await Promise.all([
+    getSetting('packages'), getSetting('slots'), getSetting('locations'), getSetting('templates')
+  ]);
+  pkgs = p || DEFAULT_PACKAGES;
+  slots = s || DEFAULT_SLOTS;
+  locs = l || DEFAULT_LOCATIONS;
+  tpls = t || { ...DEFAULT_TEMPLATES };
+}
+
+// ═══════════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════════
+async function showView(v, btn) {
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+  if (btn) btn.classList.add('active');
+  if (v === 'settings') { await loadAllSettings(); renderSettings(); renderTemplateEditors(); }
+  if (v === 'portfolio') await renderPortfolio();
+}
+
+function selectType(t, el) {
+  selectedType = t;
+  document.querySelectorAll('.type-badge').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+// ═══════════════════════════════════════════
+// BRAND PREVIEW (logo + website screenshot)
+// ═══════════════════════════════════════════
+function debounceBrandPreview() {
+  clearTimeout(brandPreviewTimer);
+  brandPreviewTimer = setTimeout(loadBrandPreview, 900);
+}
+
+async function loadBrandPreview() {
+  const url = gv('brand-url');
+  if (!url || url.length < 4) return;
+  const domain = url.replace(/https?:\/\//,'').split('/')[0].trim();
+  if (!domain.includes('.')) return;
+
+  document.getElementById('brand-preview-section').style.display = 'block';
+  logoB64 = null; productB64 = null;
+
+  // Logo via Clearbit
+  const logoUrl = `https://logo.clearbit.com/${domain}`;
+  const logoBox = document.getElementById('logo-preview-box');
+  logoBox.innerHTML = `<img src="${logoUrl}" style="max-width:100%;max-height:100%;object-fit:contain;padding:4px;" onerror="this.parentElement.innerHTML='<span class=preview-loading>No logo</span>'" />`;
+
+  try {
+    const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(logoUrl)}`);
+    if (r.ok) { const b = await r.blob(); logoB64 = await blobToB64(b); }
+  } catch(e) {}
+
+  // Website screenshot via Microlink (free, no key needed)
+  const productBox = document.getElementById('product-preview-box');
+  productBox.innerHTML = '<span class="preview-loading">Loading screenshot…</span>';
+  try {
+    const mlUrl = `https://api.microlink.io/?url=${encodeURIComponent('https://'+domain)}&screenshot=true&meta=false&embed=screenshot.url`;
+    const resp = await fetch(mlUrl);
+    const data = await resp.json();
+    if (data?.data?.screenshot?.url) {
+      const imgUrl = data.data.screenshot.url;
+      productBox.innerHTML = `<img src="${imgUrl}" style="width:100%;max-height:120px;object-fit:cover;" />`;
+      try {
+        const r2 = await fetch(`https://corsproxy.io/?${encodeURIComponent(imgUrl)}`);
+        if (r2.ok) { const b = await r2.blob(); productB64 = await blobToB64(b); }
+      } catch(e) {}
+    } else {
+      productBox.innerHTML = '<span class="preview-loading">Screenshot unavailable</span>';
+    }
+  } catch(e) {
+    productBox.innerHTML = '<span class="preview-loading">Screenshot failed</span>';
+  }
+}
+
+function blobToB64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
+// ═══════════════════════════════════════════
+// SELECTS
+// ═══════════════════════════════════════════
+function renderPackageSelect() {
+  const sel = document.getElementById('brand-package');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Select package —</option>';
+  pkgs.forEach((p,i) => sel.innerHTML += `<option value="${i}">${p.name} (€${Number(p.price).toLocaleString()})</option>`);
+  if (cur) sel.value = cur;
+}
+
+function renderSlotSelects() {
+  ['manual-slot','final-slot'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— Select slot —</option>';
+    slots.forEach((s,i) => sel.innerHTML += `<option value="${i}">${s.name} · ${s.time}</option>`);
+    if (cur) sel.value = cur;
+  });
+}
+
+function renderLocationGrid() {
+  const c = document.getElementById('location-grid');
+  c.innerHTML = '';
+  locs.forEach((l,i) => {
+    c.innerHTML += `
+      <div class="loc-btn" onclick="selectLocation(${i},this)" title="${l.desc}">
+        ${l.photo_b64
+          ? `<img class="loc-btn-thumb" src="data:image/jpeg;base64,${l.photo_b64}" />`
+          : `<div class="loc-btn-no-thumb">📍</div>`}
+        <span class="loc-btn-name">${l.name}</span>
+      </div>`;
+  });
+}
+
+// ═══════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════
+function renderSettings() {
+  document.getElementById('packages-list').innerHTML = pkgs.map((p,i) => `
+    <div class="item-row">
+      <div class="item-row-body">
+        <div class="item-row-name">${p.name}</div>
+        <div class="item-row-meta">€${Number(p.price).toLocaleString()} · ${p.rooms} DZ · ${p.tickets} VIP</div>
+        <div class="tags-row">${p.benefits.slice(0,3).map(b=>`<span class="tag">${b}</span>`).join('')}${p.benefits.length>3?`<span class="tag">+${p.benefits.length-3}</span>`:''}</div>
+      </div>
+      <div class="item-row-actions">
+        <button class="btn btn-ghost" onclick="openModal('pkg',${i})">Edit</button>
+        <button class="btn btn-danger" onclick="delItem('pkg',${i})">×</button>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('slots-list').innerHTML = slots.map((s,i) => `
+    <div class="item-row">
+      <div class="item-row-body">
+        <div class="item-row-name">${s.name}</div>
+        <div class="item-row-meta">${s.time}</div>
+        <div class="tags-row">${s.types.map(t=>`<span class="tag">Type ${t}</span>`).join('')}</div>
+      </div>
+      <div class="item-row-actions">
+        <button class="btn btn-ghost" onclick="openModal('slot',${i})">Edit</button>
+        <button class="btn btn-danger" onclick="delItem('slot',${i})">×</button>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('locations-list').innerHTML = locs.map((l,i) => `
+    <div class="item-row">
+      ${l.photo_b64 ? `<img class="loc-thumb-sm" src="data:image/jpeg;base64,${l.photo_b64}" />` : ''}
+      <div class="item-row-body">
+        <div class="item-row-name">${l.name}</div>
+        <div class="item-row-meta">${l.desc.substring(0,80)}…</div>
+        <div class="${l.photo_b64 ? 'photo-status-ok' : 'photo-status-warn'}">
+          ${l.photo_b64 ? '✓ Reference photo uploaded' : '⚠ No photo — upload for best image results'}
+        </div>
+      </div>
+      <div class="item-row-actions">
+        <button class="btn btn-ghost" onclick="openModal('loc',${i})">Edit</button>
+        <button class="btn btn-danger" onclick="delItem('loc',${i})">×</button>
+      </div>
+    </div>`).join('');
+}
+
+async function delItem(type, idx) {
+  if (type === 'pkg') { pkgs.splice(idx,1); await setSetting('packages', pkgs); renderPackageSelect(); }
+  if (type === 'slot') { slots.splice(idx,1); await setSetting('slots', slots); renderSlotSelects(); }
+  if (type === 'loc') { locs.splice(idx,1); await setSetting('locations', locs); renderLocationGrid(); }
+  renderSettings();
+}
+
+// ═══════════════════════════════════════════
+// TEMPLATES
+// ═══════════════════════════════════════════
+function renderTemplateEditors() {
+  document.getElementById('tpl-12').value = tpls.s12;
+  document.getElementById('tpl-13').value = tpls.s13;
+  document.getElementById('tpl-14').value = tpls.s14;
+}
+
+async function saveTemplates() {
+  tpls = { s12: document.getElementById('tpl-12').value, s13: document.getElementById('tpl-13').value, s14: document.getElementById('tpl-14').value };
+  await setSetting('templates', tpls);
+  stat('tpl-status','success','Templates saved to Supabase.');
+}
+
+async function resetTemplates() {
+  tpls = { ...DEFAULT_TEMPLATES };
+  await setSetting('templates', tpls);
+  renderTemplateEditors();
+  stat('tpl-status','info','Reset to defaults.');
+}
+
+function applyTemplate(tpl, d) {
+  return tpl
+    .replace(/\{\{brand\}\}/g, d.brand||'')
+    .replace(/\{\{activation\}\}/g, d.activation||'')
+    .replace(/\{\{concept\}\}/g, d.concept||'')
+    .replace(/\{\{bridge\}\}/g, d.bridge||'')
+    .replace(/\{\{slot\}\}/g, d.slot||'')
+    .replace(/\{\{package\}\}/g, d.pkg||'')
+    .replace(/\{\{price\}\}/g, d.price||'')
+    .replace(/\{\{rooms\}\}/g, d.rooms||'')
+    .replace(/\{\{tickets\}\}/g, d.tickets||'')
+    .replace(/\{\{benefits\}\}/g, d.benefits||'')
+    .replace(/\{\{slide12\}\}/g, d.slide12||'')
+    .replace(/\{\{slide13\}\}/g, d.slide13||'');
+}
+
+// ═══════════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════════
+function openModal(type, idx) {
+  if (type === 'pkg') {
+    const p = idx !== null ? pkgs[idx] : null;
+    document.getElementById('pkg-idx').value = idx ?? -1;
+    document.getElementById('pkg-title').textContent = idx === null ? 'Add Package' : 'Edit Package';
+    document.getElementById('pkg-name').value = p?.name||'';
+    document.getElementById('pkg-price').value = p?.price||'';
+    document.getElementById('pkg-rooms').value = p?.rooms||'';
+    document.getElementById('pkg-tickets').value = p?.tickets||'';
+    document.getElementById('pkg-benefits').value = p?.benefits?.join('\n')||'';
+    document.getElementById('modal-pkg').classList.add('open');
+  }
+  if (type === 'slot') {
+    const s = idx !== null ? slots[idx] : null;
+    document.getElementById('slot-idx').value = idx ?? -1;
+    document.getElementById('slot-title').textContent = idx === null ? 'Add Slot' : 'Edit Slot';
+    document.getElementById('slot-name').value = s?.name||'';
+    document.getElementById('slot-time').value = s?.time||'';
+    document.getElementById('slot-desc').value = s?.desc||'';
+    ['a','b','c'].forEach(t => document.getElementById('st-'+t).checked = s?.types?.includes(t.toUpperCase())||false);
+    document.getElementById('modal-slot').classList.add('open');
+  }
+  if (type === 'loc') {
+    const l = idx !== null ? locs[idx] : null;
+    document.getElementById('loc-idx').value = idx ?? -1;
+    document.getElementById('loc-title').textContent = idx === null ? 'Add Location' : 'Edit Location';
+    document.getElementById('loc-name').value = l?.name||'';
+    document.getElementById('loc-desc').value = l?.desc||'';
+    locPhotoB64 = l?.photo_b64 || null;
+    if (locPhotoB64) {
+      document.getElementById('loc-photo-preview').style.display = 'block';
+      document.getElementById('loc-photo-img').src = 'data:image/jpeg;base64,' + locPhotoB64;
+    } else {
+      document.getElementById('loc-photo-preview').style.display = 'none';
+    }
+    document.getElementById('modal-loc').classList.add('open');
+  }
+}
+
+async function savePackage() {
+  const idx = parseInt(document.getElementById('pkg-idx').value);
+  const pkg = { name:gv('pkg-name'), price:parseInt(gv('pkg-price'))||0, rooms:parseInt(gv('pkg-rooms'))||0, tickets:parseInt(gv('pkg-tickets'))||0, benefits:gv('pkg-benefits').split('\n').map(l=>l.trim()).filter(Boolean) };
+  if (!pkg.name) return;
+  if (idx===-1) pkgs.push(pkg); else pkgs[idx]=pkg;
+  await setSetting('packages', pkgs);
+  closeModal('modal-pkg'); renderSettings(); renderPackageSelect();
+}
+
+async function saveSlot() {
+  const idx = parseInt(document.getElementById('slot-idx').value);
+  const types = ['a','b','c'].filter(t => document.getElementById('st-'+t).checked).map(t=>t.toUpperCase());
+  const slot = { name:gv('slot-name'), time:gv('slot-time'), desc:gv('slot-desc'), types:types.length?types:['A','B','C'] };
+  if (!slot.name) return;
+  if (idx===-1) slots.push(slot); else slots[idx]=slot;
+  await setSetting('slots', slots);
+  closeModal('modal-slot'); renderSettings(); renderSlotSelects();
+}
+
+async function saveLocation() {
+  const idx = parseInt(document.getElementById('loc-idx').value);
+  const loc = { name:gv('loc-name'), desc:gv('loc-desc'), photo_b64:locPhotoB64 };
+  if (!loc.name) return;
+  if (idx===-1) locs.push(loc); else locs[idx]=loc;
+  await setSetting('locations', locs);
+  closeModal('modal-loc'); renderSettings(); renderLocationGrid();
+}
+
+function handleLocPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    locPhotoB64 = e.target.result.split(',')[1];
+    document.getElementById('loc-photo-preview').style.display = 'block';
+    document.getElementById('loc-photo-img').src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearLocPhoto() {
+  locPhotoB64 = null;
+  document.getElementById('loc-photo-preview').style.display = 'none';
+  document.getElementById('loc-photo-input').value = '';
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
+});
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+function gv(id) { return (document.getElementById(id).value || '').trim(); }
+function gc(id) { return (document.getElementById(id).textContent || '').trim(); }
+
+function stat(id, type, msg) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = `<div class="status-msg ${type}">${msg}</div>`;
+}
+
+function setBtnLoading(id, txt) {
+  const b = document.getElementById(id);
+  b.disabled = true;
+  b.innerHTML = `<span class="spinner"></span> ${txt}`;
+}
+
+function setBtnReset(id, txt) {
+  const b = document.getElementById(id);
+  b.disabled = false;
+  b.innerHTML = txt;
+}
+
+function setStep(n) {
+  ['step1','step2','step3','step4'].forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','done');
+    if (i+1 === n) el.classList.add('active');
+    else if (i+1 < n) el.classList.add('done');
+  });
+}
+
+async function callClaude(prompt, maxTokens = 2000) {
+  const key = localStorage.getItem('wc_anth');
+  if (!key) throw new Error('No Anthropic key. Logout and re-enter.');
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Anthropic API error'); }
+  const d = await res.json();
+  return d.content[0].text.trim();
+}
+
+function parseJSON(raw) {
+  return JSON.parse(raw.replace(/^```json\n?/,'').replace(/\n?```$/,'').trim());
+}
+
+function copyField(id, btn) {
+  navigator.clipboard.writeText(document.getElementById(id).textContent).then(() => {
+    const orig = btn.textContent; btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+function copyAllSlides(btn) {
+  const brand = gv('brand-name');
+  const s12 = gc('out-slide12');
+  const s13 = gc('out-slide13');
+  const s14 = gc('out-slide14');
+  const text = `=== ${brand} · WorldChanger Pitch ===\n\n— SLIDE 12 —\n${s12}\n\n— SLIDE 13 —\n${s13}\n\n— SLIDE 14 —\n${s14}`;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = '📋 Copy All', 2000);
+  });
+}
+</script>
+<script>
+// ═══════════════════════════════════════════
+// STEP 1 — IDEAS via CLAUDE SONNET 4.6
+// ═══════════════════════════════════════════
+async function generateIdeas() {
+  const brandName = gv('brand-name');
+  const brandUrl = gv('brand-url');
+  const brandDna = gv('brand-dna');
+  if (!brandName) { stat('gen-status','error','Please enter a brand name.'); return; }
+  if (!localStorage.getItem('wc_anth')) { stat('gen-status','error','No Anthropic key. Logout and re-enter.'); return; }
+
+  const pkgIdx = gv('brand-package');
+  const pkg = pkgIdx ? pkgs[parseInt(pkgIdx)] : null;
+  const slotsText = slots.map((s,i) => `${i+1}. "${s.name}" (${s.time}) — ${s.desc} [Best for Type: ${s.types.join(',')}]`).join('\n');
+
+  setBtnLoading('gen-btn', 'Claude is thinking…');
+  stat('gen-status','info','Generating ideas with Claude Sonnet 4.6…');
+
+  const prompt = `You are Daniel Kramer's creative strategist for WorldChanger Days 2026. Daniel spent 10 years at Meta/Instagram and 3 years at Google/YouTube building A-list creator relationships. He knows exactly what makes a brand activation feel premium vs. generic.
+
+WORLDCHANGER DAYS 2026 — FULL CONTEXT:
+- Venue: Hotel Stanglwirt, Kitzbühel, Austria (one of Europe's most exclusive 5-star alpine hotels, owned by the Hauser family for generations)
+- Date: Summer 2026
+- Format: 2-day premium mental health event — Day 1: keynote show at K3 Congress Center + VIP Dinner at Stanglwirt / Day 2: immersive experience day at Stanglwirt grounds
+- Guests: 800 VIP — A-list German-speaking creators (Pamela Reif 10M+, Mario Götze, Heidi Klum, Nico Rosberg), entrepreneurs, investors, CEOs, world-class athletes
+- Combined social reach: 350M+ followers
+- Theme: Mental health, personal transformation, peak performance, authentic community
+- Vibe: Intimate and curated — think Davos meets Coachella. NOT a mass event.
+- The event is about showing up as your best self. Every element should feel earned, meaningful, premium.
+
+BRAND TO ACTIVATE:
+Name: ${brandName}
+Website: ${brandUrl || 'not provided'}
+DNA / Description: ${brandDna || 'Infer from brand name and context'}
+Integration Type Preference: ${selectedType === 'AUTO' ? 'You decide — but always start by asking: what is the most DIRECT and AUTHENTIC way for this brand to show up for this specific audience and setting?' : 'Type ' + selectedType}
+${pkg ? `Preferred Package: ${pkg.name} (€${Number(pkg.price).toLocaleString()})` : ''}
+
+INTEGRATION TYPE DEFINITIONS (be precise):
+- TYPE A (Natural Fit): The product IS the activation. No creative bridge needed. The brand's core product has a direct functional role — guests literally use it and it enhances their experience. The product would be missed if it wasn't there. GOOD EXAMPLE: Technogym provides the fitness equipment for the Monday wellness morning — guests train with Technogym machines at dawn in the Stanglwirt garden with mountains in the background. BAD EXAMPLE: "Technogym banner in the foyer."
+- TYPE B (Context Fit): The brand fits naturally into an existing event moment with a thoughtful creative layer. The product appears in the perfect context but needs a small intentional spark to feel extraordinary. GOOD EXAMPLE: Lidl Trek sponsors the Kitzbühel cycling tour — guests ride Trek bikes on an alpine route, Trek guide leads, no forced narrative needed.
+- TYPE C (Creative/Unexpected): The brand needs a creative bridge to connect to the WorldChanger theme. The link must feel genuinely earned — not forced. Think: what emotion or human truth does this brand touch that maps to transformation/mental health? GOOD EXAMPLE: iPuro fragrances → each arriving VIP is greeted by a scent sommelier who assigns them their personal "WorldChanger scent" based on what they want to transform in their life. The scent travels with them across the event.
+
+DANIEL'S QUALITY CRITERIA (non-negotiable):
+1. Would Pamela Reif or Mario Götze genuinely enjoy this and post an authentic Story about it? Not a sponsored post — an authentic one.
+2. Is the brand's product actually present, touchable, sensorial — not just logo placement?
+3. Does it create a genuine MOMENT that guests will tell their friends about?
+4. Is there an authentic, earned connection to mental health, peak performance, or personal transformation?
+5. Does it feel like it could ONLY happen at WorldChanger / Stanglwirt — not at any other event?
+6. Would a CEO or investor feel this elevated their status by participating?
+
+AVAILABLE SLOTS:
+${slotsText}
+
+MENTAL HEALTH / TRANSFORMATION THEMES (use what genuinely fits — never force):
+Focus & Clarity | Resilience & Comebacks | Recovery & Rest | Community & Deep Connection | Mindfulness & Presence | Longevity & Vitality | Joy & Play | Self-Expression | Courage | Identity & Reinvention
+
+WHAT MAKES A BAD IDEA — AVOID THESE:
+- "Branded corner with product display" — no, too passive
+- Forcing a mental health angle that doesn't fit the product
+- Generic stamp card challenges that have no brand logic
+- Ideas that could work at any event — must be specific to WorldChanger + Stanglwirt
+- Activations where guests are passive observers instead of participants
+
+Generate exactly 3 activation ideas. Use a DIFFERENT slot for each when possible. Make them genuinely distinct from each other in type, tone, and slot.
+
+Return ONLY a valid JSON array:
+[{
+  "type": "A|B|C",
+  "slot": "exact slot name from the list",
+  "name": "Punchy activation name (4-7 words, memorable, brand-specific)",
+  "concept": "2-3 sentences. Be hyper-specific: what does the guest see when they walk up? What do they do? What does the brand's product actually do in this context? What do they take home?",
+  "bridge": "One precise sentence connecting to a mental health / transformation theme. Must feel genuinely earned, not marketing speak.",
+  "rationale": "One sentence: the strategic logic — why THIS brand, THIS slot, THIS moment.",
+  "imagePrompt": "Photorealistic editorial photography prompt. Describe: 1 specific person (not a crowd, not 'people'), their exact action, exact clothing style, brand product visible through color/shape/material ONLY (no text or logos), precise Stanglwirt/Kitzbühel setting, time of day and light quality. End with: Shot on Hasselblad H6D 50c, 85mm f/1.8, golden hour light, editorial luxury event photography, photorealistic, anatomically correct — exactly two arms, two legs, five fingers per hand, natural human proportions, no distortion, no extra limbs"
+}]`;
+
+  try {
+    const raw = await callClaude(prompt, 3500);
+    generatedIdeas = parseJSON(raw);
+    renderIdeas(generatedIdeas);
+    stat('gen-status','success',`${generatedIdeas.length} ideas generated by Claude Sonnet 4.6`);
+    setStep(1);
+  } catch(e) {
+    stat('gen-status','error','Error: ' + e.message);
+  }
+  setBtnReset('gen-btn','✦ Regenerate with Claude →');
+}
+
+function renderIdeas(ideas) {
+  document.getElementById('ideas-grid').innerHTML = ideas.map((idea,i) => `
+    <div class="idea-card" onclick="selectIdea(${i},this)">
+      <div class="idea-check">✓</div>
+      <div class="idea-header">
+        <div class="idea-number">${String(i+1).padStart(2,'0')}</div>
+        <div class="idea-tags">
+          <div class="idea-type-tag">Type ${idea.type}</div>
+          <div class="idea-slot-tag">${idea.slot}</div>
+        </div>
+      </div>
+      <div class="idea-name">${idea.name}</div>
+      <div class="idea-concept">${idea.concept}</div>
+      ${idea.rationale ? `<div class="idea-rationale">↳ ${idea.rationale}</div>` : ''}
+      <div class="idea-bridge">Mental Health · ${idea.bridge}</div>
+    </div>`).join('');
+}
+
+function selectIdea(idx, el) {
+  document.querySelectorAll('.idea-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedIdea = generatedIdeas[idx];
+  document.getElementById('final-name').value = selectedIdea.name;
+  document.getElementById('final-concept').value = selectedIdea.concept;
+  document.getElementById('final-bridge').value = selectedIdea.bridge;
+  renderSlotSelects();
+  const matchIdx = slots.findIndex(s => s.name === selectedIdea.slot);
+  if (matchIdx !== -1) document.getElementById('final-slot').value = matchIdx;
+  document.getElementById('refine-panel').style.display = 'block';
+  document.getElementById('refine-panel').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  setStep(2);
+}
+
+function useManualIdea() {
+  const name = gv('manual-name'), concept = gv('manual-concept'), bridge = gv('manual-bridge');
+  const slotIdx = gv('manual-slot');
+  if (!name || !concept) { alert('Please fill Activation Name and Concept.'); return; }
+  const slot = slotIdx ? slots[parseInt(slotIdx)] : null;
+  selectedIdea = { name, concept, bridge, slot: slot?.name||'Custom', imagePrompt:'', rationale:'' };
+  document.getElementById('final-name').value = name;
+  document.getElementById('final-concept').value = concept;
+  document.getElementById('final-bridge').value = bridge;
+  renderSlotSelects();
+  if (slotIdx) document.getElementById('final-slot').value = slotIdx;
+  document.getElementById('refine-panel').style.display = 'block';
+  document.getElementById('refine-panel').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  setStep(2);
+}
+
+function goBackToIdeas() {
+  document.getElementById('refine-panel').style.display = 'none';
+  setStep(1);
+}
+
+// ═══════════════════════════════════════════
+// STEP 3 — IMAGE PROMPT + GENERATION
+// ═══════════════════════════════════════════
+let selectedLocIdx = null;
+
+async function proceedToImage() {
+  const slotIdx = gv('final-slot');
+  const slot = slotIdx ? slots[parseInt(slotIdx)] : null;
+  selectedIdea = {
+    ...selectedIdea,
+    name: gv('final-name'),
+    concept: gv('final-concept'),
+    bridge: gv('final-bridge'),
+    slot: slot?.name || selectedIdea.slot || 'Custom'
+  };
+
+  document.getElementById('image-panel').style.display = 'block';
+  document.getElementById('image-panel').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  setStep(3);
+
+  updateRefBar();
+
+  const brandName = gv('brand-name'), brandUrl = gv('brand-url'), brandDna = gv('brand-dna');
+  document.getElementById('image-prompt').value = 'Crafting cinematic prompt with Claude…';
+
+  let imgPrompt = selectedIdea.imagePrompt || '';
+  if (!imgPrompt || imgPrompt.length < 60) {
+    try {
+      imgPrompt = await callClaude(`Write a hyper-specific photorealistic AI image generation prompt for this brand activation.
+
+Brand: ${brandName} (${brandUrl || ''})
+Brand DNA: ${brandDna || 'infer from name'}
+Activation: ${selectedIdea.name}
+Concept: ${selectedIdea.concept}
+Slot: ${selectedIdea.slot}
+
+RULES FOR ANATOMICALLY CORRECT, REALISTIC OUTPUT:
+1. Describe EXACTLY 1 person. Never "people" or "guests" — one specific individual.
+2. Describe them precisely: "a 29-year-old woman with shoulder-length dark hair, wearing a cream linen blouse and fitted beige trousers, relaxed and confident posture"
+3. Describe their EXACT action: not "enjoying" — "sitting cross-legged on a wooden deck chair, eyes closed, palms resting on knees, slight smile"
+4. Brand product: describe ONLY by visual appearance — shape, color, material, packaging silhouette. Example: "a tall cylindrical matte black device the size of a wine bottle" or "amber glass bottles with minimal white label". NEVER brand name or text.
+5. Setting: ultra-specific. "On the terrace of a 5-star alpine hotel, a panorama of the Kitzbühel Hahnenkamm mountain visible across a valley of green meadows, late afternoon light casting long warm shadows across stone-paved terrace"
+6. Camera: "Shot from hip height, slightly upward angle, 85mm focal length, f/1.8 shallow depth of field, background softly blurred"
+7. End with EXACTLY this closing: "Shot on Hasselblad H6D 50c, 85mm f/1.8, golden hour, editorial luxury event photography, photorealistic, anatomically correct — exactly two arms, two legs, five fingers per hand, natural human proportions, no distortion, no extra limbs, no floating elements"
+8. Max 200 words. Output the prompt ONLY.`, 400);
+    } catch(e) {
+      imgPrompt = `A 28-year-old athletic woman with dark hair, wearing premium casual athleisure, genuinely engaging with ${brandName} products — brand colors and product shapes visible, no text or logos. Stanglwirt luxury alpine hotel setting, Kitzbühel Hahnenkamm mountain panorama visible, late afternoon golden light. Shot from eye level, 85mm, f/1.8. Shot on Hasselblad H6D 50c, editorial luxury event photography, photorealistic, anatomically correct — exactly two arms, two legs, five fingers per hand, natural human proportions, no distortion, no extra limbs.`;
+    }
+  }
+  document.getElementById('image-prompt').value = imgPrompt;
+}
+
+function updateRefBar() {
+  let hasAny = false;
+  if (logoB64) {
+    document.getElementById('ref-logo-box').style.display = 'block';
+    document.getElementById('ref-logo-img').src = 'data:image/png;base64,' + logoB64;
+    hasAny = true;
+  } else { document.getElementById('ref-logo-box').style.display = 'none'; }
+  if (productB64) {
+    document.getElementById('ref-product-box').style.display = 'block';
+    document.getElementById('ref-product-img').src = 'data:image/png;base64,' + productB64;
+    hasAny = true;
+  } else { document.getElementById('ref-product-box').style.display = 'none'; }
+  document.getElementById('ref-scene-box').style.display = 'none';
+  document.getElementById('ref-images-bar').style.display = hasAny ? 'flex' : 'none';
+}
+
+function selectLocation(idx, el) {
+  selectedLocIdx = idx;
+  document.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  const loc = locs[idx];
+  selectedLocB64 = loc.photo_b64 || null;
+
+  if (selectedLocB64) {
+    document.getElementById('ref-scene-box').style.display = 'block';
+    document.getElementById('ref-scene-img').src = 'data:image/jpeg;base64,' + selectedLocB64;
+    document.getElementById('ref-images-bar').style.display = 'flex';
+  } else {
+    document.getElementById('ref-scene-box').style.display = 'none';
+  }
+
+  // Count references for badge
+  const refCount = [logoB64, productB64, selectedLocB64].filter(Boolean).length;
+  document.getElementById('model-badge').textContent = refCount > 0
+    ? `gpt-image-1 · HD · ${refCount} reference image${refCount>1?'s':''} active`
+    : 'gpt-image-1 · HD 1536×1024';
+
+  // Prepend location to prompt
+  let cur = document.getElementById('image-prompt').value.replace(/^LOCATION:.*?\n\n/s, '');
+  document.getElementById('image-prompt').value = `LOCATION: ${loc.name} — ${loc.desc}\n\n${cur}`;
+}
+
+async function generateImage() {
+  const oaiKey = localStorage.getItem('wc_oai');
+  const prompt = gv('image-prompt');
+  if (!oaiKey) { stat('img-status','error','No OpenAI key. Logout and re-enter.'); return; }
+  if (!prompt) { stat('img-status','error','No prompt.'); return; }
+
+  setBtnLoading('img-btn','Generating… 20–40 seconds');
+  stat('img-status','info','Sending to gpt-image-1…');
+  document.getElementById('img-placeholder').style.display = 'flex';
+  document.getElementById('generated-img').style.display = 'none';
+  document.getElementById('img-actions').style.display = 'none';
+  currentImageB64 = null;
+
+  // Enrich prompt with brand reference descriptions
+  const refParts = [];
+  if (logoB64) refParts.push('incorporate the brand logo colors and visual identity from the reference logo image');
+  if (productB64) refParts.push('use the exact product shapes, colors, and packaging silhouettes visible on the brand website');
+  if (selectedLocB64) refParts.push('replicate the EXACT architecture, setting, lighting conditions and atmosphere of the provided location reference photo');
+
+  const fullPrompt = refParts.length > 0
+    ? `${prompt}\n\nCRITICAL VISUAL REFERENCES TO FOLLOW: ${refParts.join('. ')}.`
+    : prompt;
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${oaiKey}` },
+      body: JSON.stringify({ model:'gpt-image-1', prompt: fullPrompt, n:1, size:'1536x1024', quality:'high' })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || `Error ${res.status}`);
+    }
+
+    const d = await res.json();
+
+    if (d.data?.[0]?.b64_json) {
+      currentImageB64 = d.data[0].b64_json;
+      showImage('data:image/png;base64,' + currentImageB64);
+      stat('img-status','success','Generated with gpt-image-1 ✓');
+    } else if (d.data?.[0]?.url) {
+      const imgUrl = d.data[0].url;
+      try {
+        const r = await fetch(imgUrl);
+        const blob = await r.blob();
+        currentImageB64 = await blobToB64(blob);
+        showImage('data:image/png;base64,' + currentImageB64);
+      } catch(e) {
+        showImage(imgUrl);
+      }
+      stat('img-status','success','Generated with gpt-image-1 ✓');
+    } else {
+      throw new Error('No image data in response');
+    }
+  } catch(e) {
+    stat('img-status','error',`Error: ${e.message}. Check your OpenAI API Tier at platform.openai.com/settings/organization/limits`);
+    document.getElementById('img-placeholder').style.display = 'flex';
+  }
+  setBtnReset('img-btn','Regenerate Image →');
+}
+
+function showImage(src) {
+  document.getElementById('img-placeholder').style.display = 'none';
+  const imgEl = document.getElementById('generated-img');
+  imgEl.src = src; imgEl.style.display = 'block';
+  document.getElementById('img-actions').style.display = 'flex';
+}
+
+function downloadImage() {
+  if (!currentImageB64) return;
+  const a = document.createElement('a');
+  a.href = 'data:image/png;base64,' + currentImageB64;
+  a.download = `wc-${gv('brand-name').toLowerCase().replace(/\s+/g,'-')}.png`;
+  a.click();
+}
+
+// ═══════════════════════════════════════════
+// STEP 4 — OUTPUT
+// ═══════════════════════════════════════════
+async function proceedToOutput() {
+  const brandName = gv('brand-name');
+  const pkgIdx = gv('brand-package');
+  const pkg = pkgIdx ? pkgs[parseInt(pkgIdx)] : null;
+
+  document.getElementById('output-panel').style.display = 'block';
+  document.getElementById('output-panel').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  setStep(4);
+
+  let slide12 = `${selectedIdea.name}\n\n${selectedIdea.concept}`;
+  let slide13 = selectedIdea.bridge;
+
+  try {
+    stat('save-status','info','Generating slide copy with Claude…');
+    const raw = await callClaude(`Write compelling English pitch deck copy for 2 slides. Max 70 words each. Flowing prose, present tense, vivid. No bullets. No headers.
+
+Brand: ${brandName}
+Activation: ${selectedIdea.name}
+Concept: ${selectedIdea.concept}
+Mental Health Bridge: ${selectedIdea.bridge}
+Slot: ${selectedIdea.slot}
+${pkg ? `Package: ${pkg.name} · €${Number(pkg.price).toLocaleString()} · ${pkg.rooms} hotel rooms · ${pkg.tickets} VIP tickets` : ''}
+
+Return ONLY this JSON:
+{"slide12":"activation concept copy — what it is, why it's powerful, what the brand achieves","slide13":"guest experience copy — what it feels like, content opportunity, why VIPs will authentically post about it"}`, 600);
+
+    const out = parseJSON(raw);
+    slide12 = out.slide12;
+    slide13 = out.slide13;
+    document.getElementById('save-status').innerHTML = '';
+  } catch(e) { /* use fallback */ }
+
+  const tplData = {
+    brand: brandName,
+    activation: selectedIdea.name,
+    concept: selectedIdea.concept,
+    bridge: selectedIdea.bridge,
+    slot: selectedIdea.slot,
+    pkg: pkg?.name||'',
+    price: pkg ? Number(pkg.price).toLocaleString() : '',
+    rooms: pkg?.rooms||'',
+    tickets: pkg?.tickets||'',
+    benefits: pkg?.benefits?.join('\n')||'',
+    slide12, slide13
+  };
+
+  document.getElementById('out-slide12').textContent = applyTemplate(tpls.s12, tplData);
+  document.getElementById('out-slide13').textContent = applyTemplate(tpls.s13, tplData);
+  document.getElementById('out-slide14').textContent = applyTemplate(tpls.s14, tplData);
+}
+
+// ═══════════════════════════════════════════
+// PORTFOLIO — SUPABASE
+// ═══════════════════════════════════════════
+async function savePitch() {
+  const brandName = gv('brand-name');
+  const s12 = gc('out-slide12');
+  const s13 = gc('out-slide13');
+  const s14 = gc('out-slide14');
+
+  if (!brandName) { stat('save-status','error','No brand name.'); return; }
+  if (!selectedIdea) { stat('save-status','error','No activation selected.'); return; }
+  if (!s12 || s12 === '—') { stat('save-status','error','Generate slide copy first (step 4).'); return; }
+
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const pkgIdx = gv('brand-package');
+  const pkg = pkgIdx ? pkgs[parseInt(pkgIdx)] : null;
+
+  const pitch = {
+    brand: brandName,
+    brand_url: gv('brand-url'),
+    activation: selectedIdea.name || '',
+    concept: selectedIdea.concept || '',
+    bridge: selectedIdea.bridge || '',
+    slot: selectedIdea.slot || '',
+    package: pkg?.name || null,
+    price: pkg?.price || null,
+    slide12: s12,
+    slide13: s13,
+    slide14: s14,
+    image_b64: currentImageB64 || null
+  };
+
+  try {
+    await sbFetch('pitches', { method:'POST', body: JSON.stringify(pitch) });
+    stat('save-status','success','✓ Saved to Supabase Portfolio!');
+    await updatePortfolioTab();
+  } catch(e) {
+    stat('save-status','error','Save failed: ' + e.message);
+  }
+  btn.disabled = false; btn.textContent = 'Save →';
+}
+
+async function updatePortfolioTab() {
+  try {
+    const rows = await sbFetch('pitches?select=id');
+    const n = rows?.length || 0;
+    document.getElementById('nav-portfolio').textContent = n > 0 ? `Portfolio (${n})` : 'Portfolio';
+  } catch(e) {}
+}
+
+async function renderPortfolio() {
+  const c = document.getElementById('portfolio-container');
+  c.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:40px">Loading from Supabase…</div>';
+  try {
+    const pitches = await sbFetch('pitches?select=*&order=created_at.desc');
+    if (!pitches || !pitches.length) {
+      c.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div>No pitches saved yet.<br>Generate a pitch and click "Save to Portfolio".</div></div>`;
+      return;
+    }
+    c.innerHTML = `<div class="portfolio-grid">${pitches.map(p => `
+      <div class="pitch-card">
+        <div class="pitch-date">${new Date(p.created_at).toLocaleDateString('de-DE')}</div>
+        ${p.image_b64 ? `<img class="pitch-thumb" src="data:image/png;base64,${p.image_b64}" onerror="this.style.display='none'" />` : `<div class="pitch-thumb-empty">No image</div>`}
+        <div class="pitch-body">
+          <div class="pitch-brand">${p.brand}</div>
+          <div class="pitch-name">${p.activation}</div>
+          <div class="pitch-slot-tag">${p.slot}</div>
+          ${p.package ? `<div class="pitch-meta">${p.package}${p.price ? ' · €'+Number(p.price).toLocaleString() : ''}</div>` : ''}
+          <div class="pitch-actions-row">
+            <button class="btn btn-ghost btn-sm" onclick="openPitchDetail(${p.id})">Open →</button>
+            <button class="btn btn-danger btn-sm" onclick="deletePitch(${p.id})">Delete</button>
+          </div>
+        </div>
+      </div>`).join('')}</div>`;
+  } catch(e) {
+    c.innerHTML = `<div class="empty-state"><div>Error: ${e.message}</div></div>`;
+  }
+}
+
+async function openPitchDetail(id) {
+  currentPitchId = id;
+  try {
+    const rows = await sbFetch(`pitches?id=eq.${id}&select=*`);
+    const p = rows[0];
+    document.getElementById('pd-brand').textContent = p.brand;
+    document.getElementById('pd-name').textContent = p.activation;
+    document.getElementById('pd-slot').textContent = p.slot;
+    document.getElementById('pd-concept').textContent = p.concept;
+    document.getElementById('pd-bridge').textContent = p.bridge;
+    document.getElementById('pd-s12').textContent = p.slide12 || '';
+    document.getElementById('pd-s13').textContent = p.slide13 || '';
+    document.getElementById('pd-s14').textContent = p.slide14 || '';
+    const imgEl = document.getElementById('pd-img');
+    if (p.image_b64) { imgEl.src = 'data:image/png;base64,' + p.image_b64; imgEl.style.display = 'block'; }
+    else imgEl.style.display = 'none';
+    document.getElementById('pd-status').innerHTML = '';
+    document.getElementById('modal-pitch').classList.add('open');
+  } catch(e) {
+    alert('Error loading pitch: ' + e.message);
+  }
+}
+
+async function savePitchEdits() {
+  if (!currentPitchId) return;
+  try {
+    await sbFetch(`pitches?id=eq.${currentPitchId}`, {
+      method: 'PATCH',
+      prefer: 'return=minimal',
+      body: JSON.stringify({
+        concept: document.getElementById('pd-concept').textContent,
+        bridge: document.getElementById('pd-bridge').textContent,
+        slide12: document.getElementById('pd-s12').textContent,
+        slide13: document.getElementById('pd-s13').textContent,
+        slide14: document.getElementById('pd-s14').textContent
+      })
+    });
+    stat('pd-status','success','Edits saved to Supabase.');
+    await renderPortfolio();
+  } catch(e) {
+    stat('pd-status','error','Save failed: ' + e.message);
+  }
+}
+
+async function deletePitchFromDetail() {
+  if (!currentPitchId || !confirm('Delete this pitch?')) return;
+  await deletePitch(currentPitchId);
+  closeModal('modal-pitch');
+}
+
+async function deletePitch(id) {
+  try {
+    await sbFetch(`pitches?id=eq.${id}`, { method:'DELETE', prefer:'return=minimal' });
+    await renderPortfolio();
+    await updatePortfolioTab();
+  } catch(e) { alert('Delete failed: ' + e.message); }
+}
+
+function copyAllFromDetail() {
+  const brand = gc('pd-brand');
+  const name = gc('pd-name');
+  const s12 = gc('pd-s12');
+  const s13 = gc('pd-s13');
+  const s14 = gc('pd-s14');
+  const text = `=== ${brand} · ${name} ===\n\n— SLIDE 12 —\n${s12}\n\n— SLIDE 13 —\n${s13}\n\n— SLIDE 14 —\n${s14}`;
+  navigator.clipboard.writeText(text).then(() => stat('pd-status','success','All slides copied to clipboard!'));
+}
+
+// ═══════════════════════════════════════════
+// RESET
+// ═══════════════════════════════════════════
+function resetGenerator() {
+  generatedIdeas = []; selectedIdea = null; currentImageB64 = null;
+  logoB64 = null; productB64 = null; selectedLocB64 = null; selectedLocIdx = null;
+  ['brand-name','brand-url','brand-dna'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('brand-package').value = '';
+  document.getElementById('brand-preview-section').style.display = 'none';
+  document.getElementById('ideas-grid').innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:20px 0;text-align:center">Enter brand details and hit Generate →</div>';
+  ['refine-panel','image-panel','output-panel'].forEach(id => document.getElementById(id).style.display = 'none');
+  ['gen-status','img-status','save-status'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = ''; });
+  setBtnReset('gen-btn','✦ Generate with Claude →');
+  document.getElementById('img-placeholder').style.display = 'flex';
+  document.getElementById('generated-img').style.display = 'none';
+  document.getElementById('img-actions').style.display = 'none';
+  document.querySelectorAll('.loc-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('ref-images-bar').style.display = 'none';
+  setStep(1);
+  window.scrollTo(0,0);
+  document.querySelectorAll('.type-badge').forEach((b,i) => { b.classList.remove('selected'); if(i===3) b.classList.add('selected'); });
+  selectedType = 'AUTO';
+}
+</script>
+</body></html>
