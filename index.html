@@ -1390,12 +1390,12 @@ async function proceedToImage() {
     const hasLogo = !!logoB64;
     const hasProduct = !!productB64;
 
-    imgPrompt = await callClaude(`You are briefing an AI image generator (gpt-image-1) to create a photorealistic event activation image.
+    imgPrompt = await callClaude(`You are briefing an AI image generator (gpt-image-1) to create a photorealistic event activation image that looks like it was shot by a professional event photographer — indistinguishable from a real photo.
 
 CRITICAL CONTEXT:
-${hasLocPhoto ? `- I am providing a REFERENCE PHOTO of the exact location. The AI must use this as the base scene and build the activation into it.` : `- Location: ${locName} — ${locDesc}`}
-${hasLogo ? `- I am providing the BRAND LOGO as a reference image. Use the logo's colors and visual identity for all branded elements.` : ''}
-${hasProduct ? `- I am providing a PRODUCT REFERENCE IMAGE. Reproduce the exact product shapes, colors, and materials from this image.` : ''}
+${hasLocPhoto ? `- I am providing a REFERENCE PHOTO of the exact location. Build the activation into this exact scene — same sky, same mountains, same court surface, same fence, same trees in the background.` : `- Location: ${locName} — ${locDesc}`}
+${hasLogo ? `- I am providing the BRAND LOGO. Use its exact colors and identity for branded elements (tent, banner, mat).` : ''}
+${hasProduct ? `- I am providing a PRODUCT REFERENCE IMAGE. Reproduce the exact product shapes, textures, and colors visible in this image.` : ''}
 
 BRAND ACTIVATION TO BUILD:
 Brand: ${brandName}
@@ -1403,20 +1403,19 @@ Activation: ${selectedIdea.name}
 What it is: ${selectedIdea.concept}
 Event slot: ${selectedIdea.slot}
 
-YOUR TASK:
-Write a prompt in NATURAL SCENE-DESCRIPTION LANGUAGE — like briefing a photographer or film director. NOT technical camera specs.
+WRITE A NATURAL SCENE DESCRIPTION — like briefing a film director, not a camera manual.
 
-Style to follow: "In the reference photo you can see [location]. Using [brand] logo as reference, please build [describe what's happening naturally]. The activation is called [name]."
+${hasLocPhoto ? 'START with: "In the reference photo you can see the location. Please build the following activation into this exact scene:"' : `START with: "At the ${locName} of Hotel Stanglwirt in Kitzbühel, Austria:"`}
 
-Make it feel like a real scene that could be photographed. Describe:
-- What branded setup/structure exists (tent, station, rack, booth...)
-- What people are doing (2-4 people max, natural interactions)
-- What products are visible and how they're being used
-- The overall atmosphere and energy
+Then describe the scene naturally. Include:
+- The branded setup (tent, station, products displayed)
+- 2-3 people interacting naturally — caught mid-movement, not posing
+- What each person is doing with their hands/body
 
-${hasLocPhoto ? 'START with: "In the reference photo you can see the location. Please build the following activation into this exact scene:"' : `START with: "At the ${locName} of Hotel Stanglwirt in Kitzbühel, Austria, with the Wilder Kaiser mountain panorama in the background:"`}
+THEN END THE PROMPT WITH EXACTLY THIS PARAGRAPH — do not modify it:
+"Shot by a professional event photographer on a Canon EOS R5 with a 35mm lens. The people look completely real — natural skin texture with visible pores, slight motion blur on moving limbs, clothes with real wrinkles and fabric weight, hair moving slightly, eyes with natural catchlights. Hard directional sunlight casting sharp shadows on the court surface. The image must be completely indistinguishable from a real photograph taken at a real event. No AI smoothness, no perfect symmetry, no studio lighting."
 
-Keep it under 150 words. Natural language only. No camera specs. No "anatomically correct". Output the prompt ONLY.`, 400);
+Keep the scene description under 100 words. Output the full prompt ONLY.`, 450);
 
   } catch(e) {
     imgPrompt = `In the reference photo you can see the location. Please build the following activation into this exact scene: A ${brandName} branded pop-up station where 2-3 guests are actively using ${brandName} products. Use the brand logo colors and product shapes from the reference images. The activation is called "${selectedIdea.name}". ${selectedIdea.concept} Natural, authentic atmosphere — looks like a real luxury event photo.`;
