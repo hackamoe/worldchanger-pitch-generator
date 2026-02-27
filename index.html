@@ -798,36 +798,52 @@ async function loadBrandPreview() {
   document.getElementById('brand-preview-section').style.display = 'block';
   logoB64 = null; productB64 = null;
 
-  // Logo via Clearbit
+  // Logo via Clearbit — show directly, try b64 in background
   const logoUrl = `https://logo.clearbit.com/${domain}`;
   const logoBox = document.getElementById('logo-preview-box');
-  logoBox.innerHTML = `<img src="${logoUrl}" style="max-width:100%;max-height:100%;object-fit:contain;padding:4px;" onerror="this.parentElement.innerHTML='<span class=preview-loading>No logo</span>'" />`;
+  logoBox.innerHTML = `<img src="${logoUrl}" style="max-width:56px;max-height:56px;object-fit:contain;padding:4px;" onerror="this.parentElement.innerHTML='<span class=preview-loading>No logo</span>'" onload="logoLoaded('${logoUrl}')" />`;
 
-  try {
-    const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(logoUrl)}`);
-    if (r.ok) { const b = await r.blob(); logoB64 = await blobToB64(b); }
-  } catch(e) {}
-
-  // Website screenshot via Microlink (free, no key needed)
+  // Website screenshot via Microlink
   const productBox = document.getElementById('product-preview-box');
-  productBox.innerHTML = '<span class="preview-loading">Loading screenshot…</span>';
+  productBox.innerHTML = '<span class="preview-loading">Loading…</span>';
   try {
     const mlUrl = `https://api.microlink.io/?url=${encodeURIComponent('https://'+domain)}&screenshot=true&meta=false&embed=screenshot.url`;
     const resp = await fetch(mlUrl);
     const data = await resp.json();
     if (data?.data?.screenshot?.url) {
       const imgUrl = data.data.screenshot.url;
-      productBox.innerHTML = `<img src="${imgUrl}" style="width:100%;max-height:120px;object-fit:cover;" />`;
-      try {
-        const r2 = await fetch(`https://corsproxy.io/?${encodeURIComponent(imgUrl)}`);
-        if (r2.ok) { const b = await r2.blob(); productB64 = await blobToB64(b); }
-      } catch(e) {}
+      productBox.innerHTML = `<img src="${imgUrl}" style="width:100%;max-height:120px;object-fit:cover;" onload="productLoaded('${imgUrl}')" />`;
     } else {
       productBox.innerHTML = '<span class="preview-loading">Screenshot unavailable</span>';
     }
   } catch(e) {
     productBox.innerHTML = '<span class="preview-loading">Screenshot failed</span>';
   }
+}
+
+// Convert img to b64 after it loads (via canvas — no CORS proxy needed)
+function logoLoaded(url) {
+  const img = new Image(); img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      logoB64 = c.toDataURL('image/png').split(',')[1];
+    } catch(e) {}
+  };
+  img.src = url;
+}
+
+function productLoaded(url) {
+  const img = new Image(); img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      productB64 = c.toDataURL('image/jpeg').split(',')[1];
+    } catch(e) {}
+  };
+  img.src = url;
 }
 
 function blobToB64(blob) {
@@ -1156,63 +1172,50 @@ async function generateIdeas() {
   setBtnLoading('gen-btn', 'Claude is thinking…');
   stat('gen-status','info','Generating ideas with Claude Sonnet 4.6…');
 
-  const prompt = `You are Daniel Kramer's creative strategist for WorldChanger Days 2026. Daniel spent 10 years at Meta/Instagram and 3 years at Google/YouTube building A-list creator relationships. He knows exactly what makes a brand activation feel premium vs. generic.
+  const prompt = `Du bist ein Sponsoring-Stratege für WorldChanger Days 2026 am Stanglwirt Kitzbühel.
 
-WORLDCHANGER DAYS 2026 — FULL CONTEXT:
-- Venue: Hotel Stanglwirt, Kitzbühel, Austria (one of Europe's most exclusive 5-star alpine hotels, owned by the Hauser family for generations)
-- Date: Summer 2026
-- Format: 2-day premium mental health event — Day 1: keynote show at K3 Congress Center + VIP Dinner at Stanglwirt / Day 2: immersive experience day at Stanglwirt grounds
-- Guests: 800 VIP — A-list German-speaking creators (Pamela Reif 10M+, Mario Götze, Heidi Klum, Nico Rosberg), entrepreneurs, investors, CEOs, world-class athletes
-- Combined social reach: 350M+ followers
-- Theme: Mental health, personal transformation, peak performance, authentic community
-- Vibe: Intimate and curated — think Davos meets Coachella. NOT a mass event.
-- The event is about showing up as your best self. Every element should feel earned, meaningful, premium.
+EVENT:
+- Hotel Stanglwirt, Kitzbühel, Österreich — 5-Sterne Alpenhotel
+- 800 VIP-Gäste: A-List Creator (Pamela Reif, Mario Götze, Heidi Klum), Unternehmer, CEOs, Athleten
+- 2 Tage: Tag 1 = Keynote Show K3 Congress + VIP Dinner Stanglwirt / Tag 2 = Experience Day Stanglwirt
+- Thema: Mental Health, Transformation, Peak Performance
+- Vibes: intim, authentisch, premium — KEIN Massenevent
 
-BRAND TO ACTIVATE:
+BRAND:
 Name: ${brandName}
-Website: ${brandUrl || 'not provided'}
-DNA / Description: ${brandDna || 'Infer from brand name and context'}
-Integration Type Preference: ${selectedType === 'AUTO' ? 'You decide — but always start by asking: what is the most DIRECT and AUTHENTIC way for this brand to show up for this specific audience and setting?' : 'Type ' + selectedType}
-${pkg ? `Preferred Package: ${pkg.name} (€${Number(pkg.price).toLocaleString()})` : ''}
+Website: ${brandUrl || '—'}
+DNA: ${brandDna || 'aus Brand ableiten'}
+${pkg ? `Package: ${pkg.name} (€${Number(pkg.price).toLocaleString()})` : ''}
+Typ-Präferenz: ${selectedType === 'AUTO' ? 'AUTO — wähle was am besten passt' : 'Typ ' + selectedType}
 
-INTEGRATION TYPE DEFINITIONS (be precise):
-- TYPE A (Natural Fit): The product IS the activation. No creative bridge needed. The brand's core product has a direct functional role — guests literally use it and it enhances their experience. The product would be missed if it wasn't there. GOOD EXAMPLE: Technogym provides the fitness equipment for the Monday wellness morning — guests train with Technogym machines at dawn in the Stanglwirt garden with mountains in the background. BAD EXAMPLE: "Technogym banner in the foyer."
-- TYPE B (Context Fit): The brand fits naturally into an existing event moment with a thoughtful creative layer. The product appears in the perfect context but needs a small intentional spark to feel extraordinary. GOOD EXAMPLE: Lidl Trek sponsors the Kitzbühel cycling tour — guests ride Trek bikes on an alpine route, Trek guide leads, no forced narrative needed.
-- TYPE C (Creative/Unexpected): The brand needs a creative bridge to connect to the WorldChanger theme. The link must feel genuinely earned — not forced. Think: what emotion or human truth does this brand touch that maps to transformation/mental health? GOOD EXAMPLE: iPuro fragrances → each arriving VIP is greeted by a scent sommelier who assigns them their personal "WorldChanger scent" based on what they want to transform in their life. The scent travels with them across the event.
+TYPEN (exakt einhalten):
+- TYP A: Produkt IS die Activation. Keine kreative Brücke nötig. Gäste nutzen das Produkt direkt. Beispiel: Blackroll → Recovery-Station nach dem Padel-Turnier. Blackroll-Rollen und Bälle liegen aus, Physio führt 10-Min Gruppen-Mobility durch.
+- TYP B: Produkt passt perfekt in einen Event-Moment mit kleinem kreativem Funken. Beispiel: Trek → offizieller Bike-Partner der Kitzbühel Morning Ride — Gäste fahren Trek-Bikes auf Alpenroute.
+- TYP C: Kreative Brücke nötig — aber ECHT, nicht erzwungen. Was berührt diese Marke emotional, das zu Mental Health/Transformation passt? Beispiel: iPuro → Duft-Sommelier weist jedem VIP beim Ankommen einen persönlichen WorldChanger-Duft zu.
 
-DANIEL'S QUALITY CRITERIA (non-negotiable):
-1. Would Pamela Reif or Mario Götze genuinely enjoy this and post an authentic Story about it? Not a sponsored post — an authentic one.
-2. Is the brand's product actually present, touchable, sensorial — not just logo placement?
-3. Does it create a genuine MOMENT that guests will tell their friends about?
-4. Is there an authentic, earned connection to mental health, peak performance, or personal transformation?
-5. Does it feel like it could ONLY happen at WorldChanger / Stanglwirt — not at any other event?
-6. Would a CEO or investor feel this elevated their status by participating?
+REGELN:
+- Kurz und konkret. KEINE langen Marketingtexte.
+- Concept = max 2 Sätze. Was passiert? Was macht der Gast?
+- Bridge = 1 kurzer Satz. Echt, nicht geschwollen.
+- Würde Pamela Reif das authentisch posten? Wenn nein → andere Idee.
+- Produkt muss physisch präsent und anfassbar sein — kein Banner, kein Logo-Aufsteller.
 
-AVAILABLE SLOTS:
+SLOTS:
 ${slotsText}
 
-MENTAL HEALTH / TRANSFORMATION THEMES (use what genuinely fits — never force):
-Focus & Clarity | Resilience & Comebacks | Recovery & Rest | Community & Deep Connection | Mindfulness & Presence | Longevity & Vitality | Joy & Play | Self-Expression | Courage | Identity & Reinvention
+Generate exactly 3 ideas in different slots, different types.
 
-WHAT MAKES A BAD IDEA — AVOID THESE:
-- "Branded corner with product display" — no, too passive
-- Forcing a mental health angle that doesn't fit the product
-- Generic stamp card challenges that have no brand logic
-- Ideas that could work at any event — must be specific to WorldChanger + Stanglwirt
-- Activations where guests are passive observers instead of participants
-
-Generate exactly 3 activation ideas. Use a DIFFERENT slot for each when possible. Make them genuinely distinct from each other in type, tone, and slot.
-
-Return ONLY a valid JSON array:
+Respond ONLY with this JSON array:
 [{
   "type": "A|B|C",
-  "slot": "exact slot name from the list",
-  "name": "Punchy activation name (4-7 words, memorable, brand-specific)",
-  "concept": "2-3 sentences. Be hyper-specific: what does the guest see when they walk up? What do they do? What does the brand's product actually do in this context? What do they take home?",
-  "bridge": "One precise sentence connecting to a mental health / transformation theme. Must feel genuinely earned, not marketing speak.",
-  "rationale": "One sentence: the strategic logic — why THIS brand, THIS slot, THIS moment.",
-  "imagePrompt": "Photorealistic editorial photography prompt. Describe: 1 specific person (not a crowd, not 'people'), their exact action, exact clothing style, brand product visible through color/shape/material ONLY (no text or logos), precise Stanglwirt/Kitzbühel setting, time of day and light quality. End with: Shot on Hasselblad H6D 50c, 85mm f/1.8, golden hour light, editorial luxury event photography, photorealistic, anatomically correct — exactly two arms, two legs, five fingers per hand, natural human proportions, no distortion, no extra limbs"
+  "slot": "exakter Slot-Name aus der Liste",
+  "name": "Short punchy name (3-5 words, no marketing speak)",
+  "concept": "Max 2 sentences: what happens concretely? What does the guest do/experience?",
+  "bridge": "1 sentence: genuine connection to mental health / transformation. No fluff.",
+  "rationale": "1 sentence: why this brand, this slot.",
+  "imagePrompt": "1 specific person (no crowd), concrete action, ${brandName} products visible through shape/color/material only (no text no logo), exact Stanglwirt/Kitzbühel setting + time of day + light. End with: Shot on Hasselblad H6D 50c, 85mm f/1.8, editorial luxury event photography, photorealistic, anatomically correct — exactly two arms two legs five fingers per hand, no distortion, no extra limbs"
 }]`;
+
 
   try {
     const raw = await callClaude(prompt, 3500);
@@ -1468,17 +1471,20 @@ async function proceedToOutput() {
 
   try {
     stat('save-status','info','Generating slide copy with Claude…');
-    const raw = await callClaude(`Write compelling English pitch deck copy for 2 slides. Max 70 words each. Flowing prose, present tense, vivid. No bullets. No headers.
+    const raw = await callClaude(`Write short, concrete English pitch deck copy for 2 slides. Max 50 words each. Clear, direct, no marketing fluff.
 
 Brand: ${brandName}
 Activation: ${selectedIdea.name}
 Concept: ${selectedIdea.concept}
 Mental Health Bridge: ${selectedIdea.bridge}
 Slot: ${selectedIdea.slot}
-${pkg ? `Package: ${pkg.name} · €${Number(pkg.price).toLocaleString()} · ${pkg.rooms} hotel rooms · ${pkg.tickets} VIP tickets` : ''}
+${pkg ? `Package: ${pkg.name} · €${Number(pkg.price).toLocaleString()}` : ''}
 
-Return ONLY this JSON:
-{"slide12":"activation concept copy — what it is, why it's powerful, what the brand achieves","slide13":"guest experience copy — what it feels like, content opportunity, why VIPs will authentically post about it"}`, 600);
+Slide 12 = What is the activation? What happens concretely?
+Slide 13 = What does the guest experience? Why would Pamela Reif post this authentically?
+
+Respond ONLY with this JSON:
+{"slide12":"max 50 words, concrete, no marketing","slide13":"max 50 words, guest perspective, authentic"}`, 400);
 
     const out = parseJSON(raw);
     slide12 = out.slide12;
@@ -1526,7 +1532,6 @@ async function savePitch() {
 
   const pitch = {
     brand: brandName,
-    brand_url: gv('brand-url'),
     activation: selectedIdea.name || '',
     concept: selectedIdea.concept || '',
     bridge: selectedIdea.bridge || '',
