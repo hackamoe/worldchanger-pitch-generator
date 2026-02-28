@@ -500,7 +500,44 @@ input[type="file"]{display:none;}
         <div id="tpl-status"></div>
       </div>
       <div class="settings-section" style="grid-column:1/-1">
-        <div class="settings-title">API Keys</div>
+        <div class="settings-title">Image Engine</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Choose which AI generates the activation images. Flux 1.1 Pro is often more photorealistic for people, costs ~$0.04/image vs $0.19 for gpt-image-1.</div>
+        <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:12px 16px;border:1px solid var(--border);border-radius:6px;flex:1;min-width:200px" id="engine-gpt-label">
+            <input type="radio" name="img-engine" value="gpt" id="engine-gpt" onchange="saveEngineSettings()" style="accent-color:var(--gold)" />
+            <div>
+              <div style="font-weight:600;font-size:13px">gpt-image-1</div>
+              <div style="font-size:11px;color:var(--text-dim)">OpenAI · $0.19/image · supports reference photos · HD 1536×1024</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:12px 16px;border:1px solid var(--border);border-radius:6px;flex:1;min-width:200px" id="engine-flux-label">
+            <input type="radio" name="img-engine" value="flux" id="engine-flux" onchange="saveEngineSettings()" style="accent-color:var(--gold)" />
+            <div>
+              <div style="font-weight:600;font-size:13px">Flux 1.1 Pro</div>
+              <div style="font-size:11px;color:var(--text-dim)">fal.ai · ~$0.04/image · hyper-realistic people · 1440×960</div>
+            </div>
+          </label>
+        </div>
+        <div id="flux-key-section" style="display:none">
+          <div class="field" style="max-width:480px">
+            <label>fal.ai API Key <span style="color:var(--text-dim);font-size:10px">— get at fal.ai/dashboard</span></label>
+            <input type="password" id="settings-fal" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" class="mono" />
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="saveFalKey()" style="margin-top:8px">Save fal.ai Key</button>
+        </div>
+        <div id="engine-status"></div>
+      </div>
+
+      <div class="settings-section" style="grid-column:1/-1">
+        <div class="settings-title">Image Prompt Style Guide</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">This style guide is appended to every generated image prompt. Edit to control the visual quality, atmosphere, and realism of all generated images. Use it to lock in your preferred aesthetic.</div>
+        <textarea id="prompt-style-guide" style="width:100%;min-height:180px;font-family:monospace;font-size:12px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:12px;border-radius:6px;line-height:1.6;resize:vertical"></textarea>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button class="btn btn-secondary" onclick="resetPromptStyleGuide()">Reset to Default</button>
+          <button class="btn btn-primary" onclick="savePromptStyleGuide()">Save Style Guide</button>
+        </div>
+        <div id="style-guide-status"></div>
+      </div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Keys are stored locally in your browser only — never sent to any server.</div>
         <div class="api-keys-grid">
           <div class="field">
@@ -756,10 +793,65 @@ function saveApiKeys() {
 function prefillApiKeyFields() {
   const anth = localStorage.getItem('wc_anth');
   const oai = localStorage.getItem('wc_oai');
+  const fal = localStorage.getItem('wc_fal');
   const sa = document.getElementById('settings-anth');
   const so = document.getElementById('settings-oai');
+  const sf = document.getElementById('settings-fal');
   if (sa && anth) sa.value = anth;
   if (so && oai) so.value = oai;
+  if (sf && fal) sf.value = fal;
+
+  // Restore engine selection
+  const engine = localStorage.getItem('wc_img_engine') || 'gpt';
+  const radio = document.getElementById(`engine-${engine}`);
+  if (radio) radio.checked = true;
+  document.getElementById('flux-key-section').style.display = engine === 'flux' ? 'block' : 'none';
+  highlightEngineLabel(engine);
+
+  // Restore style guide
+  const sg = document.getElementById('prompt-style-guide');
+  if (sg) sg.value = localStorage.getItem('wc_style_guide') || getDefaultStyleGuide();
+}
+
+function saveEngineSettings() {
+  const engine = document.querySelector('input[name="img-engine"]:checked')?.value || 'gpt';
+  localStorage.setItem('wc_img_engine', engine);
+  document.getElementById('flux-key-section').style.display = engine === 'flux' ? 'block' : 'none';
+  highlightEngineLabel(engine);
+  stat('engine-status', 'success', `Image engine set to ${engine === 'gpt' ? 'gpt-image-1' : 'Flux 1.1 Pro'}`);
+  setTimeout(() => stat('engine-status','',''), 2000);
+}
+
+function highlightEngineLabel(engine) {
+  document.getElementById('engine-gpt-label').style.borderColor = engine === 'gpt' ? 'var(--gold)' : 'var(--border)';
+  document.getElementById('engine-flux-label').style.borderColor = engine === 'flux' ? 'var(--gold)' : 'var(--border)';
+}
+
+function saveFalKey() {
+  const key = document.getElementById('settings-fal').value.trim();
+  if (key) { localStorage.setItem('wc_fal', key); stat('engine-status','success','fal.ai key saved.'); }
+  else stat('engine-status','error','Enter a valid fal.ai key.');
+  setTimeout(() => stat('engine-status','',''), 2000);
+}
+
+function getDefaultStyleGuide() {
+  return `Shot by a professional event photographer on a Canon EOS R5 with a 35mm lens. The people look completely real — natural skin texture with visible pores, slight motion blur on moving limbs, clothes with real wrinkles and fabric weight, hair moving slightly, eyes with natural catchlights. Hard directional sunlight casting sharp shadows on the court surface. The branded infrastructure must look premium and architectural — no cheap pop-up tents or plasticky stands. Think Wimbledon hospitality, Porsche Cup paddock, Rolex ATP Tour courtside: dark powder-coated steel frames, natural oak wood surfaces, linen fabric panels, matte black signage with embossed lettering, premium materials throughout. 5-6 people actively engaged, various interactions happening simultaneously, energetic but premium atmosphere. The overall image must be completely indistinguishable from a real photograph taken at a real luxury event. No AI smoothness, no perfect symmetry, no studio lighting.`;
+}
+
+function savePromptStyleGuide() {
+  const val = document.getElementById('prompt-style-guide').value.trim();
+  if (!val) { stat('style-guide-status','error','Style guide cannot be empty.'); return; }
+  localStorage.setItem('wc_style_guide', val);
+  stat('style-guide-status','success','Style guide saved — applied to all future image prompts.');
+  setTimeout(() => stat('style-guide-status','',''), 3000);
+}
+
+function resetPromptStyleGuide() {
+  const def = getDefaultStyleGuide();
+  document.getElementById('prompt-style-guide').value = def;
+  localStorage.setItem('wc_style_guide', def);
+  stat('style-guide-status','success','Reset to default.');
+  setTimeout(() => stat('style-guide-status','',''), 2000);
 }
 
 async function changePassword() {
@@ -1443,7 +1535,7 @@ Then describe the scene naturally. Include:
 - What each person is doing with their hands/body
 
 THEN END THE PROMPT WITH EXACTLY THIS PARAGRAPH — do not modify it:
-"Shot by a professional event photographer on a Canon EOS R5 with a 35mm lens. The people look completely real — natural skin texture with visible pores, slight motion blur on moving limbs, clothes with real wrinkles and fabric weight, hair moving slightly, eyes with natural catchlights. Hard directional sunlight casting sharp shadows on the court surface. The branded infrastructure must look premium and architectural — no cheap pop-up tents or plasticky stands. Think Wimbledon hospitality, Porsche Cup paddock, Rolex ATP Tour courtside: dark powder-coated steel frames, natural oak wood surfaces, linen fabric panels, matte black signage with embossed lettering, premium materials throughout. The overall image must be completely indistinguishable from a real photograph taken at a real luxury event. No AI smoothness, no perfect symmetry, no studio lighting."
+"${localStorage.getItem('wc_style_guide') || getDefaultStyleGuide()}"
 
 Keep the scene description under 100 words. Output the full prompt ONLY.`, 450);
 
@@ -1486,9 +1578,14 @@ function selectLocation(idx, el) {
 
   // Count references for badge
   const refCount = [logoB64, productB64, selectedLocB64].filter(Boolean).length;
-  document.getElementById('model-badge').textContent = refCount > 0
-    ? `gpt-image-1 · HD · ${refCount} reference image${refCount>1?'s':''} active`
-    : 'gpt-image-1 · HD 1536×1024';
+  const engine = localStorage.getItem('wc_img_engine') || 'gpt';
+  if (engine === 'flux') {
+    document.getElementById('model-badge').textContent = 'Flux 1.1 Pro · fal.ai · 1440×960';
+  } else {
+    document.getElementById('model-badge').textContent = refCount > 0
+      ? `gpt-image-1 · HD · ${refCount} reference image${refCount>1?'s':''} active`
+      : 'gpt-image-1 · HD 1536×1024';
+  }
 
   // Prepend location to prompt
   let cur = document.getElementById('image-prompt').value.replace(/^LOCATION:.*?\n\n/s, '');
@@ -1496,10 +1593,98 @@ function selectLocation(idx, el) {
 }
 
 async function generateImage() {
-  const oaiKey = localStorage.getItem('wc_oai');
+  const engine = localStorage.getItem('wc_img_engine') || 'gpt';
   const prompt = gv('image-prompt');
-  if (!oaiKey) { stat('img-status','error','No OpenAI key. Logout and re-enter.'); return; }
   if (!prompt) { stat('img-status','error','No prompt.'); return; }
+
+  if (engine === 'flux') {
+    await generateImageFlux(prompt);
+  } else {
+    await generateImageGPT(prompt);
+  }
+}
+
+async function generateImageFlux(prompt) {
+  const falKey = localStorage.getItem('wc_fal');
+  if (!falKey) { stat('img-status','error','No fal.ai key. Add it in Settings → Image Engine.'); return; }
+
+  setBtnLoading('img-btn','Generating with Flux… 10–20 seconds');
+  stat('img-status','info','Sending to Flux 1.1 Pro via fal.ai…');
+  document.getElementById('img-placeholder').style.display = 'flex';
+  document.getElementById('generated-img').style.display = 'none';
+  document.getElementById('img-actions').style.display = 'none';
+  currentImageB64 = null;
+
+  // Update model badge
+  document.getElementById('model-badge').textContent = 'Flux 1.1 Pro · fal.ai · 1440×960';
+
+  try {
+    // Submit job
+    const submitRes = await fetch('https://queue.fal.run/fal-ai/flux-pro/v1.1', {
+      method: 'POST',
+      headers: { 'Authorization': `Key ${falKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: prompt,
+        image_size: { width: 1440, height: 960 },
+        num_inference_steps: 28,
+        guidance_scale: 3.5,
+        num_images: 1,
+        safety_tolerance: '2',
+        output_format: 'jpeg'
+      })
+    });
+
+    if (!submitRes.ok) {
+      const e = await submitRes.json();
+      throw new Error(e.detail || e.message || `HTTP ${submitRes.status}`);
+    }
+
+    const job = await submitRes.json();
+    const requestId = job.request_id;
+    if (!requestId) throw new Error('No request_id from fal.ai');
+
+    // Poll for result
+    let result = null;
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      const pollRes = await fetch(`https://queue.fal.run/fal-ai/flux-pro/v1.1/requests/${requestId}`, {
+        headers: { 'Authorization': `Key ${falKey}` }
+      });
+      const pollData = await pollRes.json();
+      if (pollData.status === 'COMPLETED' || pollData.images) {
+        result = pollData;
+        break;
+      }
+      if (pollData.status === 'FAILED') throw new Error('Flux generation failed: ' + (pollData.error || 'unknown'));
+      stat('img-status','info',`Flux generating… (${(i+1)*2}s)`);
+    }
+
+    if (!result) throw new Error('Timeout — Flux took too long');
+
+    const imgUrl = result.images?.[0]?.url;
+    if (!imgUrl) throw new Error('No image URL in Flux response');
+
+    // Fetch and convert to b64
+    try {
+      const r = await fetch(imgUrl);
+      const blob = await r.blob();
+      currentImageB64 = await blobToB64(blob);
+      showImage('data:image/jpeg;base64,' + currentImageB64, currentImageB64);
+    } catch(e) {
+      showImage(imgUrl, null);
+    }
+    stat('img-status','success','Generated with Flux 1.1 Pro ✓');
+
+  } catch(e) {
+    stat('img-status','error','Flux error: ' + e.message);
+    document.getElementById('img-placeholder').style.display = 'flex';
+  }
+  setBtnReset('img-btn','Regenerate Image →');
+}
+
+async function generateImageGPT(prompt) {
+  const oaiKey = localStorage.getItem('wc_oai');
+  if (!oaiKey) { stat('img-status','error','No OpenAI key. Add it in Settings → API Keys.'); return; }
 
   setBtnLoading('img-btn','Generating… 20–40 seconds');
   stat('img-status','info','Sending to gpt-image-1…');
@@ -1507,6 +1692,10 @@ async function generateImage() {
   document.getElementById('generated-img').style.display = 'none';
   document.getElementById('img-actions').style.display = 'none';
   currentImageB64 = null;
+
+  // Update model badge
+  const refCount = [selectedLocB64, logoB64, productB64].filter(Boolean).length;
+  document.getElementById('model-badge').textContent = `gpt-image-1 · HD · ${refCount} reference image${refCount !== 1 ? 's' : ''} active`;
 
   // Build the final prompt — inject STRONG reference instructions
   let finalPrompt = prompt;
