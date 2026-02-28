@@ -1614,15 +1614,16 @@ async function generateImageFlux(prompt) {
   document.getElementById('generated-img').style.display = 'none';
   document.getElementById('img-actions').style.display = 'none';
   currentImageB64 = null;
-
-  // Update model badge
   document.getElementById('model-badge').textContent = 'Flux 1.1 Pro · fal.ai · 1440×960';
 
   try {
-    // Submit job
-    const submitRes = await fetch('https://queue.fal.run/fal-ai/flux-pro/v1.1', {
+    // Use fal.ai REST API with proxy endpoint that handles CORS
+    const res = await fetch('https://fal.run/fal-ai/flux-pro/v1.1', {
       method: 'POST',
-      headers: { 'Authorization': `Key ${falKey}`, 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Key ${falKey}`,
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
         prompt: prompt,
         image_size: { width: 1440, height: 960 },
@@ -1630,47 +1631,32 @@ async function generateImageFlux(prompt) {
         guidance_scale: 3.5,
         num_images: 1,
         safety_tolerance: '2',
-        output_format: 'jpeg'
+        output_format: 'jpeg',
+        sync_mode: true
       })
     });
 
-    if (!submitRes.ok) {
-      const e = await submitRes.json();
-      throw new Error(e.detail || e.message || `HTTP ${submitRes.status}`);
+    const text = await res.text();
+    console.log('Flux response status:', res.status);
+    console.log('Flux response body:', text.slice(0, 500));
+
+    if (!res.ok) {
+      let e; try { e = JSON.parse(text); } catch(_) { e = {}; }
+      throw new Error(e.detail || e.message || `HTTP ${res.status}: ${text.slice(0,200)}`);
     }
 
-    const job = await submitRes.json();
-    const requestId = job.request_id;
-    if (!requestId) throw new Error('No request_id from fal.ai');
+    const data = JSON.parse(text);
+    const imgUrl = data.images?.[0]?.url;
+    if (!imgUrl) throw new Error('No image URL in Flux response: ' + text.slice(0,300));
 
-    // Poll for result
-    let result = null;
-    for (let i = 0; i < 60; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      const pollRes = await fetch(`https://queue.fal.run/fal-ai/flux-pro/v1.1/requests/${requestId}`, {
-        headers: { 'Authorization': `Key ${falKey}` }
-      });
-      const pollData = await pollRes.json();
-      if (pollData.status === 'COMPLETED' || pollData.images) {
-        result = pollData;
-        break;
-      }
-      if (pollData.status === 'FAILED') throw new Error('Flux generation failed: ' + (pollData.error || 'unknown'));
-      stat('img-status','info',`Flux generating… (${(i+1)*2}s)`);
-    }
-
-    if (!result) throw new Error('Timeout — Flux took too long');
-
-    const imgUrl = result.images?.[0]?.url;
-    if (!imgUrl) throw new Error('No image URL in Flux response');
-
-    // Fetch and convert to b64
+    // Fetch image and convert to b64
     try {
       const r = await fetch(imgUrl);
       const blob = await r.blob();
       currentImageB64 = await blobToB64(blob);
       showImage('data:image/jpeg;base64,' + currentImageB64, currentImageB64);
     } catch(e) {
+      // If b64 conversion fails, show URL directly
       showImage(imgUrl, null);
     }
     stat('img-status','success','Generated with Flux 1.1 Pro ✓');
