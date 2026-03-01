@@ -1548,66 +1548,71 @@ async function proceedToImage() {
     name: gv('final-name'),
     concept: gv('final-concept'),
     bridge: gv('final-bridge'),
-    slot: slot?.name || selectedIdea.slot || 'Custom'
+    slot: slot?.name || selectedIdea.slot || 'Custom',
+    slotDesc: slot?.desc || selectedIdea.slotDesc || ''
   };
 
   document.getElementById('image-panel').style.display = 'block';
   document.getElementById('image-panel').scrollIntoView({ behavior:'smooth', block:'nearest' });
   setStep(3);
-
   updateRefBar();
 
-  const brandName = gv('brand-name'), brandUrl = gv('brand-url'), brandDna = gv('brand-dna');
-  document.getElementById('image-prompt').value = 'Crafting cinematic prompt with Claude…';
+  // Generate prompt immediately using slot info — location selection refines it further
+  await generateImagePrompt();
+}
 
-  let imgPrompt = selectedIdea.imagePrompt || '';
-  // Always regenerate with Claude for best quality
+async function generateImagePrompt() {
+  if (!selectedIdea) return;
+  const brandName = gv('brand-name');
+
+  // Location: prefer manually selected loc, fall back to slot info
+  const locName = selectedLocIdx !== null
+    ? locs[selectedLocIdx]?.name
+    : selectedIdea.slot || null;
+  const locDesc = selectedLocIdx !== null
+    ? locs[selectedLocIdx]?.desc
+    : selectedIdea.slotDesc || '';
+  const hasLocPhoto = !!selectedLocB64;
+  const hasLogo = !!logoB64;
+  const hasProduct = !!productB64;
+
+  document.getElementById('image-prompt').value = `Generating prompt for "${locName || 'venue'}"…`;
+
   try {
-    const locName = selectedLocIdx !== null ? locs[selectedLocIdx]?.name : null;
-    const locDesc = selectedLocIdx !== null ? locs[selectedLocIdx]?.desc : null;
-    const hasLocPhoto = !!selectedLocB64;
-    const hasLogo = !!logoB64;
-    const hasProduct = !!productB64;
+    const prompt = await callClaude(`You are briefing an AI image generator to create a photorealistic event activation photo indistinguishable from a real event photograph.
 
-    imgPrompt = await callClaude(`You are briefing an AI image generator (gpt-image-1) to create a photorealistic event activation image that looks like it was shot by a professional event photographer — indistinguishable from a real photo.
-
-CRITICAL CONTEXT:
+LOCATION:
 ${hasLocPhoto
-  ? `- I am providing a REFERENCE PHOTO of the exact location (${locName || 'event venue'}). Build the activation into this exact scene — replicate the exact environment, surfaces, architecture, sky, mountains, and surroundings shown in the photo. Do NOT add tennis courts or clay surfaces unless they are visible in the reference photo.`
-  : locName
-    ? `- Location: ${locName} — ${locDesc}. Describe ONLY this specific setting — its actual surfaces, architecture, and environment.`
-    : `- Location: Hotel Stanglwirt, Kitzbühel, Austria — use an appropriate venue setting.`}
-${hasLogo ? `- I am providing the BRAND LOGO. Use its exact colors and identity for branded elements (tent, banner, mat).` : ''}
-${hasProduct ? `- I am providing a PRODUCT REFERENCE IMAGE. Reproduce the exact product shapes, textures, and colors visible in this image.` : ''}
+  ? `Reference photo provided of: "${locName}". Build the activation into that exact scene. Replicate its surfaces, architecture, lighting, and environment precisely. Do NOT invent a different setting.`
+  : `"${locName}"${locDesc ? ` — ${locDesc}` : ''}. Describe ONLY this specific venue's actual environment — its real surfaces, architecture, indoor/outdoor character.`}
 
-BRAND ACTIVATION TO BUILD:
+BRAND ACTIVATION:
 Brand: ${brandName}
-Activation: ${selectedIdea.name}
-What it is: ${selectedIdea.concept}
-Event slot: ${selectedIdea.slot}
+Activation: "${selectedIdea.name}"
+Concept: ${selectedIdea.concept}
+${hasLogo ? 'Brand logo reference provided — use exact colors.' : ''}
+${hasProduct ? 'Product reference image provided — reproduce exact shapes.' : ''}
 
-WRITE A NATURAL SCENE DESCRIPTION — like briefing a film director, not a camera manual.
-
+INSTRUCTIONS:
+Write a natural scene description like briefing a film director — NOT a camera manual.
 ${hasLocPhoto
-  ? `START with: "In the reference photo you can see ${locName || 'the location'}. Please build the following activation into this exact scene:"`
-  : locName
-    ? `START with: "At the ${locName}${locDesc ? ' (' + locDesc + ')' : ''}, Kitzbühel, Austria:"`
-    : `START with: "At Hotel Stanglwirt, Kitzbühel, Austria:"`}
+  ? `Start with: "In the reference photo you can see ${locName}. Place the following activation into this exact scene:"`
+  : `Start with: "At ${locName}${locDesc ? ' (' + locDesc + ')' : ''}, Kitzbühel:"`}
 
-Then describe the scene naturally. Include:
-- The branded setup (tent, station, products displayed) — appropriate to the location type
-- 2-3 people interacting naturally — caught mid-movement, not posing
-- What each person is doing with their hands/body
+Describe naturally (max 80 words):
+- The branded setup appropriate for THIS specific venue type
+- 2-3 people caught mid-action, natural interaction
+- What they're doing with hands/body
 
-THEN END THE PROMPT WITH EXACTLY THIS PARAGRAPH — do not modify it:
+END with exactly:
 "${localStorage.getItem('wc_style_guide') || getDefaultStyleGuide()}"
 
-Keep the scene description under 100 words. Output the full prompt ONLY.`, 450);
+Output the complete prompt ONLY. No preamble.`, 500);
 
+    document.getElementById('image-prompt').value = prompt;
   } catch(e) {
-    imgPrompt = `In the reference photo you can see the location. Please build the following activation into this exact scene: A ${brandName} branded pop-up station where 2-3 guests are actively using ${brandName} products. Use the brand logo colors and product shapes from the reference images. The activation is called "${selectedIdea.name}". ${selectedIdea.concept} Natural, authentic atmosphere — looks like a real luxury event photo.`;
+    document.getElementById('image-prompt').value = `At ${locName || 'the venue'}: A ${brandName} branded activation — "${selectedIdea.name}". ${selectedIdea.concept} 2-3 people interacting naturally. ${getDefaultStyleGuide()}`;
   }
-  document.getElementById('image-prompt').value = imgPrompt;
 }
 
 function updateRefBar() {
@@ -1641,20 +1646,10 @@ function selectLocation(idx, el) {
     document.getElementById('ref-scene-box').style.display = 'none';
   }
 
-  // Count references for badge
-  const refCount = [logoB64, productB64, selectedLocB64].filter(Boolean).length;
-  const engine = localStorage.getItem('wc_img_engine') || 'gpt';
-  if (engine === 'flux') {
-    document.getElementById('model-badge').textContent = 'Flux 1.1 Pro · fal.ai · 1440×960';
-  } else {
-    document.getElementById('model-badge').textContent = refCount > 0
-      ? `gpt-image-1 · HD · ${refCount} reference image${refCount>1?'s':''} active`
-      : 'gpt-image-1 · HD 1536×1024';
-  }
+  updateModelBadge();
 
-  // Prepend location to prompt
-  let cur = document.getElementById('image-prompt').value.replace(/^LOCATION:.*?\n\n/s, '');
-  document.getElementById('image-prompt').value = `LOCATION: ${loc.name} — ${loc.desc}\n\n${cur}`;
+  // Regenerate prompt with correct location
+  generateImagePrompt();
 }
 
 async function generateImage() {
