@@ -405,6 +405,13 @@ input[type="file"]{display:none;}
             <textarea class="prompt-area" id="image-prompt" rows="5"></textarea>
             <div class="model-badge" id="model-badge">gpt-image-1 · HD 1536×1024</div>
           </div>
+          <div class="field">
+            <label>Additional Reference Images <span style="color:var(--text-dim)">(optional — sent to image model)</span></label>
+            <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px">Upload mood boards, style references, competitor examples, product shots — anything to guide the visual output.</div>
+            <div id="extra-refs-grid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
+            <label class="upload-label" for="extra-ref-input" style="font-size:10px;padding:5px 12px;display:inline-block;cursor:pointer">+ Add Reference Image</label>
+            <input type="file" id="extra-ref-input" accept="image/*" multiple onchange="handleExtraRefUpload(this)" style="display:none" />
+          </div>
           <button class="btn btn-primary" id="img-btn" onclick="generateImage()">Generate Image →</button>
           <div id="img-status"></div>
           <div class="img-placeholder" id="img-placeholder">Image will appear here</div>
@@ -961,6 +968,56 @@ function clearUpload(type) {
     document.getElementById('product-clear-btn').style.display = 'none';
     document.getElementById('product-upload-input').value = '';
     loadBrandPreview();
+  }
+}
+
+function handleExtraRefUpload(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const dataUrl = e.target.result;
+      const b64 = dataUrl.split(',')[1];
+      extraRefs.push({ b64, mimeType: file.type || 'image/jpeg', name: file.name });
+      renderExtraRefs();
+      updateModelBadge();
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Reset input so same file can be re-uploaded
+  input.value = '';
+}
+
+function renderExtraRefs() {
+  const grid = document.getElementById('extra-refs-grid');
+  if (!grid) return;
+  grid.innerHTML = extraRefs.map((ref, i) => `
+    <div style="position:relative;width:72px;flex-shrink:0">
+      <img src="data:${ref.mimeType};base64,${ref.b64}" style="width:72px;height:72px;object-fit:cover;border-radius:4px;border:1px solid var(--border);display:block" title="${ref.name}" />
+      <button onclick="removeExtraRef(${i})" style="position:absolute;top:-6px;right:-6px;background:var(--red,#c0392b);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:18px;text-align:center;padding:0">✕</button>
+      <div style="font-size:8px;color:var(--text-dim);text-align:center;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ref.name.slice(0,10)}</div>
+    </div>
+  `).join('');
+}
+
+function removeExtraRef(idx) {
+  extraRefs.splice(idx, 1);
+  renderExtraRefs();
+  updateModelBadge();
+}
+
+function updateModelBadge() {
+  const engine = localStorage.getItem('wc_img_engine') || 'gpt';
+  const refCount = [selectedLocB64, logoB64, productB64].filter(Boolean).length + extraRefs.length;
+  if (engine === 'flux') {
+    document.getElementById('model-badge').textContent = `Flux 1.1 Pro · fal.ai · 1440×960${extraRefs.length ? ` · +${extraRefs.length} extra ref${extraRefs.length>1?'s':''}` : ''}`;
+  } else {
+    document.getElementById('model-badge').textContent = refCount > 0
+      ? `gpt-image-1 · HD · ${refCount} reference image${refCount>1?'s':''} active`
+      : 'gpt-image-1 · HD 1536×1024';
   }
 }
 
@@ -1711,6 +1768,9 @@ CRITICAL: The background, environment, and architecture must match the reference
   if (productB64) {
     finalPrompt += `\n\nPRODUCT REFERENCE: Use the provided product image to see the exact product shapes, form factor, materials, and visual style. Reproduce these exact product shapes/colors in the scene — no text or logos visible.`;
   }
+  if (extraRefs.length > 0) {
+    finalPrompt += `\n\nADDITIONAL REFERENCE IMAGES (${extraRefs.length}): ${extraRefs.length} extra reference image${extraRefs.length>1?'s are':' is'} provided. Use them to understand the desired visual style, mood, color palette, and aesthetic direction. Let them inform the overall look and feel of the generated image.`;
+  }
 
   try {
     let d;
@@ -1738,6 +1798,11 @@ CRITICAL: The background, environment, and architecture must match the reference
         const productBlob = b64ToBlob(productB64, 'image/jpeg');
         formData.append('image[]', productBlob, 'product_reference.jpg');
       }
+      // Extra reference images uploaded by user
+      extraRefs.forEach((ref, i) => {
+        const blob = b64ToBlob(ref.b64, ref.mimeType);
+        formData.append('image[]', blob, `extra_ref_${i+1}.jpg`);
+      });
 
       stat('img-status','info','Calling /images/edits with reference images…');
       const editsRes = await fetch('https://api.openai.com/v1/images/edits', {
@@ -1805,6 +1870,7 @@ function b64ToBlob(b64, mimeType) {
 }
 
 let imageGallery = []; // stores {b64, src} for all generated images
+let extraRefs = []; // stores {b64, mimeType, name} for additional reference images
 
 function showImage(src, b64) {
   document.getElementById('img-placeholder').style.display = 'none';
@@ -2064,8 +2130,13 @@ function resetGenerator() {
   logoB64 = null; productB64 = null; selectedLocB64 = null; selectedLocIdx = null;
   logoManualB64 = null; productManualB64 = null;
   imageGallery = [];
+  extraRefs = [];
   document.getElementById('img-gallery').style.display = 'none';
   document.getElementById('img-gallery-grid').innerHTML = '';
+  const extraGrid = document.getElementById('extra-refs-grid');
+  if (extraGrid) extraGrid.innerHTML = '';
+  const extraInput = document.getElementById('extra-ref-input');
+  if (extraInput) extraInput.value = '';
   ['brand-name','brand-url','brand-dna'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('brand-package').value = '';
   document.getElementById('brand-preview-section').style.display = 'none';
