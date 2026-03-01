@@ -404,6 +404,9 @@ input[type="file"]{display:none;}
             <label>Image Prompt <span style="color:var(--text-dim)">(editable)</span></label>
             <textarea class="prompt-area" id="image-prompt" rows="5"></textarea>
             <div class="model-badge" id="model-badge">gpt-image-1 · HD 1536×1024</div>
+            <div id="kontext-hint" style="display:none;font-size:10px;color:var(--gold);margin-top:6px;background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.2);padding:6px 10px;border-radius:4px">
+              ⚡ <strong>Flux Kontext mode:</strong> Your location reference photo is used as base — the model edits directly into that scene. Prompt = edit instruction, not a scene description.
+            </div>
           </div>
           <div class="field">
             <label>Additional Reference Images <span style="color:var(--text-dim)">(optional — sent to image model)</span></label>
@@ -1289,16 +1292,19 @@ async function saveSlot() {
 
 async function saveLocation() {
   const idx = parseInt(document.getElementById('loc-idx').value);
-  const loc = { name:gv('loc-name'), desc:gv('loc-desc'), photo_b64:locPhotoB64 };
+  const loc = { name:gv('loc-name'), desc:gv('loc-desc'), photo_b64:locPhotoB64, photo_mime: locPhotoMime };
   if (!loc.name) return;
   if (idx===-1) locs.push(loc); else locs[idx]=loc;
   await setSetting('locations', locs);
   closeModal('modal-loc'); renderSettings(); renderLocationGrid();
 }
 
+let locPhotoMime = 'image/jpeg';
+
 function handleLocPhoto(input) {
   const file = input.files[0];
   if (!file) return;
+  locPhotoMime = file.type || 'image/jpeg';
   const reader = new FileReader();
   reader.onload = (e) => {
     locPhotoB64 = e.target.result.split(',')[1];
@@ -1564,49 +1570,39 @@ async function proceedToImage() {
 async function generateImagePrompt() {
   if (!selectedIdea) return;
   const brandName = gv('brand-name');
+  const engine = localStorage.getItem('wc_img_engine') || 'gpt';
+  const hasRef = !!selectedLocB64;
 
-  // Location: prefer manually selected loc, fall back to slot info
-  const locName = selectedLocIdx !== null
-    ? locs[selectedLocIdx]?.name
-    : selectedIdea.slot || null;
-  const locDesc = selectedLocIdx !== null
-    ? locs[selectedLocIdx]?.desc
-    : selectedIdea.slotDesc || '';
-  const hasLocPhoto = !!selectedLocB64;
-  const hasLogo = !!logoB64;
-  const hasProduct = !!productB64;
+  // Flux Kontext + reference photo: needs a short, direct edit instruction — NOT a long prompt
+  if (engine === 'flux' && hasRef) {
+    const locName = selectedLocIdx !== null ? locs[selectedLocIdx]?.name : selectedIdea.slot || 'the venue';
+    document.getElementById('image-prompt').value = `Keep the exact room, stage, architecture, lighting and background identical. Add a ${brandName} branded activation on the stage: "${selectedIdea.name}" — ${selectedIdea.concept} Add 3-4 people interacting naturally with the activation. Photorealistic — real people, real materials, no AI look.`;
+    return;
+  }
+
+  // GPT or Flux without reference: generate full cinematic scene prompt via Claude
+  const locName = selectedLocIdx !== null ? locs[selectedLocIdx]?.name : selectedIdea.slot || null;
+  const locDesc = selectedLocIdx !== null ? locs[selectedLocIdx]?.desc : selectedIdea.slotDesc || '';
 
   document.getElementById('image-prompt').value = `Generating prompt for "${locName || 'venue'}"…`;
 
   try {
     const prompt = await callClaude(`You are briefing an AI image generator to create a photorealistic event activation photo indistinguishable from a real event photograph.
 
-LOCATION:
-${hasLocPhoto
-  ? `Reference photo provided of: "${locName}". Build the activation into that exact scene. Replicate its surfaces, architecture, lighting, and environment precisely. Do NOT invent a different setting.`
-  : `"${locName}"${locDesc ? ` — ${locDesc}` : ''}. Describe ONLY this specific venue's actual environment — its real surfaces, architecture, indoor/outdoor character.`}
+LOCATION: "${locName}"${locDesc ? ` — ${locDesc}` : ''}
+Describe ONLY this specific venue's actual environment — its real surfaces, architecture, indoor/outdoor character.
 
 BRAND ACTIVATION:
 Brand: ${brandName}
 Activation: "${selectedIdea.name}"
 Concept: ${selectedIdea.concept}
-${hasLogo ? 'Brand logo reference provided — use exact colors.' : ''}
-${hasProduct ? 'Product reference image provided — reproduce exact shapes.' : ''}
+${!!logoB64 ? 'Brand logo reference provided — use exact colors.' : ''}
+${!!productB64 ? 'Product reference image provided — reproduce exact shapes.' : ''}
 
-INSTRUCTIONS:
-Write a natural scene description like briefing a film director — NOT a camera manual.
-${hasLocPhoto
-  ? `Start with: "In the reference photo you can see ${locName}. Place the following activation into this exact scene:"`
-  : `Start with: "At ${locName}${locDesc ? ' (' + locDesc + ')' : ''}, Kitzbühel:"`}
-
-Describe naturally (max 80 words):
-- The branded setup appropriate for THIS specific venue type
-- 2-3 people caught mid-action, natural interaction
-- What they're doing with hands/body
-
-END with exactly:
-"${localStorage.getItem('wc_style_guide') || getDefaultStyleGuide()}"
-
+Write a natural scene description like briefing a film director.
+Start with: "At ${locName}${locDesc ? ' (' + locDesc + ')' : ''}, Kitzbühel:"
+Describe (max 80 words): branded setup appropriate for THIS venue, 2-3 people caught mid-action.
+END with exactly: "${localStorage.getItem('wc_style_guide') || getDefaultStyleGuide()}"
 Output the complete prompt ONLY. No preamble.`, 500);
 
     document.getElementById('image-prompt').value = prompt;
@@ -1648,6 +1644,11 @@ function selectLocation(idx, el) {
 
   updateModelBadge();
 
+  // Show Kontext hint if Flux engine + reference photo
+  const engine2 = localStorage.getItem('wc_img_engine') || 'gpt';
+  const hint = document.getElementById('kontext-hint');
+  if (hint) hint.style.display = (engine2 === 'flux' && selectedLocB64) ? 'block' : 'none';
+
   // Regenerate prompt with correct location
   generateImagePrompt();
 }
@@ -1668,24 +1669,45 @@ async function generateImageFlux(prompt) {
   const falKey = localStorage.getItem('wc_fal');
   if (!falKey) { stat('img-status','error','No fal.ai key. Add it in Settings → Image Engine.'); return; }
 
-  setBtnLoading('img-btn','Generating with Flux… 10–20 seconds');
-  stat('img-status','info','Sending to Flux 1.1 Pro via fal.ai…');
+  const hasRef = !!selectedLocB64;
+
+  setBtnLoading('img-btn', hasRef ? 'Editing scene with Flux Kontext… 15–25s' : 'Generating with Flux… 10–20s');
+  stat('img-status','info', hasRef ? 'Sending reference photo + instruction to Flux Kontext…' : 'Sending to Flux 1.1 Pro…');
   document.getElementById('img-placeholder').style.display = 'flex';
   document.getElementById('generated-img').style.display = 'none';
   document.getElementById('img-actions').style.display = 'none';
   currentImageB64 = null;
-  document.getElementById('model-badge').textContent = 'Flux 1.1 Pro · fal.ai · 1440×960';
+  document.getElementById('model-badge').textContent = hasRef ? 'Flux Kontext Pro · scene editing · fal.ai' : 'Flux 1.1 Pro · fal.ai · 1440×960';
 
   try {
-    // Use fal.ai REST API with proxy endpoint that handles CORS
-    const res = await fetch('https://fal.run/fal-ai/flux-pro/v1.1', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Key ${falKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        prompt: prompt,
+    let endpoint, body;
+
+    if (hasRef) {
+      // Flux Kontext: image-to-image scene editing — this is what actually works
+      // Determine mime type of reference image
+      const locMime = locs[selectedLocIdx]?.photo_mime || 'image/jpeg';
+      const imageDataUri = `data:${locMime};base64,${selectedLocB64}`;
+
+      // Build a concise edit instruction (Kontext works best with clear, direct instructions)
+      const brandName = gv('brand-name');
+      const locName = locs[selectedLocIdx]?.name || 'the venue';
+      const editInstruction = `Keep the exact room, stage, architecture, lighting and background identical. Add a ${brandName} branded activation on the stage: ${selectedIdea.name}. ${selectedIdea.concept} Add 3-4 people interacting naturally with the activation. Keep everything photorealistic — no AI look, real people, real materials.`;
+
+      endpoint = 'https://fal.run/fal-ai/flux-pro/kontext';
+      body = {
+        prompt: editInstruction,
+        image_url: imageDataUri,
+        guidance_scale: 3.5,
+        num_inference_steps: 28,
+        safety_tolerance: '2',
+        sync_mode: true,
+        output_format: 'jpeg'
+      };
+    } else {
+      // No reference photo — fall back to text-to-image
+      endpoint = 'https://fal.run/fal-ai/flux-pro/v1.1';
+      body = {
+        prompt,
         image_size: { width: 1440, height: 960 },
         num_inference_steps: 28,
         guidance_scale: 3.5,
@@ -1693,7 +1715,13 @@ async function generateImageFlux(prompt) {
         safety_tolerance: '2',
         output_format: 'jpeg',
         sync_mode: true
-      })
+      };
+    }
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Authorization': `Key ${falKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
     });
 
     const text = await res.text();
@@ -1702,12 +1730,12 @@ async function generateImageFlux(prompt) {
 
     if (!res.ok) {
       let e; try { e = JSON.parse(text); } catch(_) { e = {}; }
-      throw new Error(e.detail || e.message || `HTTP ${res.status}: ${text.slice(0,200)}`);
+      throw new Error(e.detail || e.message || `HTTP ${res.status}: ${text.slice(0,300)}`);
     }
 
     const data = JSON.parse(text);
     const imgUrl = data.images?.[0]?.url;
-    if (!imgUrl) throw new Error('No image URL in Flux response: ' + text.slice(0,300));
+    if (!imgUrl) throw new Error('No image URL in response: ' + text.slice(0,300));
 
     // Fetch image and convert to b64
     try {
@@ -1716,10 +1744,9 @@ async function generateImageFlux(prompt) {
       currentImageB64 = await blobToB64(blob);
       showImage('data:image/jpeg;base64,' + currentImageB64, currentImageB64);
     } catch(e) {
-      // If b64 conversion fails, show URL directly
       showImage(imgUrl, null);
     }
-    stat('img-status','success','Generated with Flux 1.1 Pro ✓');
+    stat('img-status','success', hasRef ? 'Scene edited with Flux Kontext ✓' : 'Generated with Flux 1.1 Pro ✓');
 
   } catch(e) {
     stat('img-status','error','Flux error: ' + e.message);
