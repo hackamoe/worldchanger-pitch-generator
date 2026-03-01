@@ -1695,26 +1695,38 @@ async function generateImageFlux(prompt) {
       const blob = new Blob([byteArr], { type: locMime });
       const file = new File([blob], `location_ref.${ext}`, { type: locMime });
 
-      // Upload to fal.ai storage
-      const uploadRes = await fetch('https://fal.run/fal-ai/storage/upload', {
+      // Step 1a: Initiate upload — fal SDK uses 2-step: initiate -> PUT signed URL
+      // Source: @fal-ai/client storage.js: POST /storage/upload/initiate, then PUT upload_url
+      const initiateRes = await fetch('https://rest.fal.ai/storage/upload/initiate?storage_type=fal-cdn-v3', {
         method: 'POST',
         headers: {
           'Authorization': `Key ${falKey}`,
-          'Content-Type': locMime,
-          'X-Fal-File-Name': `location_ref.${ext}`
+          'Content-Type': 'application/json'
         },
+        body: JSON.stringify({
+          content_type: locMime,
+          file_name: `location_ref.${ext}`
+        })
+      });
+
+      if (!initiateRes.ok) {
+        const errText = await initiateRes.text();
+        throw new Error(`Upload initiate failed (${initiateRes.status}): ${errText.slice(0,300)}`);
+      }
+
+      const initiateData = await initiateRes.json();
+      const uploadUrl = initiateData.upload_url;
+      const imageUrl = initiateData.file_url;
+      if (!uploadUrl || !imageUrl) throw new Error('Missing upload_url or file_url: ' + JSON.stringify(initiateData));
+
+      // Step 1b: PUT the blob to the signed S3 URL (no auth header — pre-signed)
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': locMime },
         body: blob
       });
 
-      if (!uploadRes.ok) {
-        const errText = await uploadRes.text();
-        throw new Error(`Upload failed (${uploadRes.status}): ${errText.slice(0,200)}`);
-      }
-
-      const uploadData = await uploadRes.json();
-      const imageUrl = uploadData.url || uploadData.access_url;
-      if (!imageUrl) throw new Error('No URL returned from storage upload: ' + JSON.stringify(uploadData));
-
+      if (!putRes.ok) throw new Error(`File PUT to storage failed (${putRes.status})`);
       console.log('Uploaded reference to fal storage:', imageUrl);
 
       // Step 2: Flux Kontext with public URL
