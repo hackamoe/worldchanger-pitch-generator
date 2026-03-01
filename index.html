@@ -2082,6 +2082,28 @@ function resetGenerator() {
   window.scrollTo(0,0);
   document.querySelectorAll('.type-badge').forEach((b,i) => { b.classList.remove('selected'); if(i===3) b.classList.add('selected'); });
   selectedType = 'AUTO';
+
+  // Reset logo upload UI — same as clearUpload('logo')
+  logoManualB64 = null; logoB64 = null;
+  const logoBadge = document.getElementById('logo-status-badge');
+  const logoBox = document.getElementById('logo-preview-box');
+  const logoClearBtn = document.getElementById('logo-clear-btn');
+  const logoInput = document.getElementById('logo-upload-input');
+  if (logoBadge) logoBadge.textContent = '';
+  if (logoBox) logoBox.innerHTML = '<span class="preview-loading">Auto</span>';
+  if (logoClearBtn) logoClearBtn.style.display = 'none';
+  if (logoInput) logoInput.value = '';
+
+  // Reset product upload UI — same as clearUpload('product')
+  productManualB64 = null; productB64 = null;
+  const prodBadge = document.getElementById('product-status-badge');
+  const prodBox = document.getElementById('product-preview-box');
+  const prodClearBtn = document.getElementById('product-clear-btn');
+  const prodInput = document.getElementById('product-upload-input');
+  if (prodBadge) prodBadge.textContent = '';
+  if (prodBox) prodBox.innerHTML = '<span class="preview-loading">Auto</span>';
+  if (prodClearBtn) prodClearBtn.style.display = 'none';
+  if (prodInput) prodInput.value = '';
 }
 </script>
 </body></html>
