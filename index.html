@@ -1671,40 +1671,77 @@ async function generateImageFlux(prompt) {
 
   const hasRef = !!selectedLocB64;
 
-  setBtnLoading('img-btn', hasRef ? 'Editing scene with Flux Kontext… 15–25s' : 'Generating with Flux… 10–20s');
-  stat('img-status','info', hasRef ? 'Sending reference photo + instruction to Flux Kontext…' : 'Sending to Flux 1.1 Pro…');
   document.getElementById('img-placeholder').style.display = 'flex';
   document.getElementById('generated-img').style.display = 'none';
   document.getElementById('img-actions').style.display = 'none';
   currentImageB64 = null;
-  document.getElementById('model-badge').textContent = hasRef ? 'Flux Kontext Pro · scene editing · fal.ai' : 'Flux 1.1 Pro · fal.ai · 1440×960';
 
   try {
     let endpoint, body;
 
     if (hasRef) {
-      // Flux Kontext: image-to-image scene editing — this is what actually works
-      // Determine mime type of reference image
-      const locMime = locs[selectedLocIdx]?.photo_mime || 'image/jpeg';
-      const imageDataUri = `data:${locMime};base64,${selectedLocB64}`;
+      // Step 1: Upload reference image to fal.ai storage to get a public URL
+      setBtnLoading('img-btn', 'Uploading reference photo… (1/2)');
+      stat('img-status','info','Uploading K3 reference photo to fal.ai…');
+      document.getElementById('model-badge').textContent = 'Flux Kontext Pro · uploading reference…';
 
-      // Build a concise edit instruction (Kontext works best with clear, direct instructions)
+      const locMime = locs[selectedLocIdx]?.photo_mime || 'image/jpeg';
+      const ext = locMime.includes('avif') ? 'avif' : locMime.includes('png') ? 'png' : 'jpg';
+
+      // Convert base64 to Blob
+      const byteChars = atob(selectedLocB64);
+      const byteArr = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([byteArr], { type: locMime });
+      const file = new File([blob], `location_ref.${ext}`, { type: locMime });
+
+      // Upload to fal.ai storage
+      const uploadRes = await fetch('https://fal.run/fal-ai/storage/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Key ${falKey}`,
+          'Content-Type': locMime,
+          'X-Fal-File-Name': `location_ref.${ext}`
+        },
+        body: blob
+      });
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text();
+        throw new Error(`Upload failed (${uploadRes.status}): ${errText.slice(0,200)}`);
+      }
+
+      const uploadData = await uploadRes.json();
+      const imageUrl = uploadData.url || uploadData.access_url;
+      if (!imageUrl) throw new Error('No URL returned from storage upload: ' + JSON.stringify(uploadData));
+
+      console.log('Uploaded reference to fal storage:', imageUrl);
+
+      // Step 2: Flux Kontext with public URL
+      setBtnLoading('img-btn', 'Editing scene with Flux Kontext… (2/2)');
+      stat('img-status','info','Flux Kontext is editing your scene…');
+      document.getElementById('model-badge').textContent = 'Flux Kontext Pro · scene editing · fal.ai';
+
       const brandName = gv('brand-name');
-      const locName = locs[selectedLocIdx]?.name || 'the venue';
-      const editInstruction = `Keep the exact room, stage, architecture, lighting and background identical. Add a ${brandName} branded activation on the stage: ${selectedIdea.name}. ${selectedIdea.concept} Add 3-4 people interacting naturally with the activation. Keep everything photorealistic — no AI look, real people, real materials.`;
+      const editInstruction = `Keep the exact room, stage, architecture, lighting and background identical. Add a ${brandName} branded activation on the stage: "${selectedIdea.name}" — ${selectedIdea.concept} Add 3-4 people interacting naturally with the activation. Photorealistic — real people, real materials, no AI look.`;
 
       endpoint = 'https://fal.run/fal-ai/flux-pro/kontext';
       body = {
         prompt: editInstruction,
-        image_url: imageDataUri,
+        image_url: imageUrl,
         guidance_scale: 3.5,
         num_inference_steps: 28,
         safety_tolerance: '2',
         sync_mode: true,
         output_format: 'jpeg'
       };
+
     } else {
-      // No reference photo — fall back to text-to-image
+      // No reference photo — text-to-image
+      setBtnLoading('img-btn', 'Generating with Flux… 10–20s');
+      stat('img-status','info','Sending to Flux 1.1 Pro…');
+      document.getElementById('model-badge').textContent = 'Flux 1.1 Pro · fal.ai · 1440×960';
+
       endpoint = 'https://fal.run/fal-ai/flux-pro/v1.1';
       body = {
         prompt,
@@ -1737,11 +1774,10 @@ async function generateImageFlux(prompt) {
     const imgUrl = data.images?.[0]?.url;
     if (!imgUrl) throw new Error('No image URL in response: ' + text.slice(0,300));
 
-    // Fetch image and convert to b64
     try {
       const r = await fetch(imgUrl);
-      const blob = await r.blob();
-      currentImageB64 = await blobToB64(blob);
+      const imgBlob = await r.blob();
+      currentImageB64 = await blobToB64(imgBlob);
       showImage('data:image/jpeg;base64,' + currentImageB64, currentImageB64);
     } catch(e) {
       showImage(imgUrl, null);
@@ -1750,6 +1786,7 @@ async function generateImageFlux(prompt) {
 
   } catch(e) {
     stat('img-status','error','Flux error: ' + e.message);
+    console.error('Flux full error:', e);
     document.getElementById('img-placeholder').style.display = 'flex';
   }
   setBtnReset('img-btn','Regenerate Image →');
