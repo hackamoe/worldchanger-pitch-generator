@@ -1688,46 +1688,33 @@ async function generateImageFlux(prompt) {
       const locMime = locs[selectedLocIdx]?.photo_mime || 'image/jpeg';
       const ext = locMime.includes('avif') ? 'avif' : locMime.includes('png') ? 'png' : 'jpg';
 
-      // Convert base64 to Blob
-      const byteChars = atob(selectedLocB64);
-      const byteArr = new Uint8Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
-      const blob = new Blob([byteArr], { type: locMime });
-      const file = new File([blob], `location_ref.${ext}`, { type: locMime });
+      // fal.ai Kontext accepts Base64 data URIs directly per docs:
+      // "You can pass a Base64 data URI as a file input. The API will handle the file decoding."
+      // We convert to JPEG first to ensure compatibility and reduce size.
+      setBtnLoading('img-btn', 'Compressing reference image…');
+      stat('img-status','info','Compressing reference photo to JPEG…');
 
-      // Step 1a: Initiate upload — fal SDK uses 2-step: initiate -> PUT signed URL
-      // Source: @fal-ai/client storage.js: POST /storage/upload/initiate, then PUT upload_url
-      const initiateRes = await fetch('https://rest.fal.ai/storage/upload/initiate?storage_type=fal-cdn-v3', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Key ${falKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          content_type: locMime,
-          file_name: `location_ref.${ext}`
-        })
+      const imageUrl = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          // Resize to max 1536px on longest side for performance
+          let w = img.naturalWidth, h = img.naturalHeight;
+          const MAX = 1536;
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.88));
+        };
+        img.onerror = () => reject(new Error('Failed to decode reference image'));
+        img.src = `data:${locMime};base64,${selectedLocB64}`;
       });
 
-      if (!initiateRes.ok) {
-        const errText = await initiateRes.text();
-        throw new Error(`Upload initiate failed (${initiateRes.status}): ${errText.slice(0,300)}`);
-      }
-
-      const initiateData = await initiateRes.json();
-      const uploadUrl = initiateData.upload_url;
-      const imageUrl = initiateData.file_url;
-      if (!uploadUrl || !imageUrl) throw new Error('Missing upload_url or file_url: ' + JSON.stringify(initiateData));
-
-      // Step 1b: PUT the blob to the signed S3 URL (no auth header — pre-signed)
-      const putRes = await fetch(uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': locMime },
-        body: blob
-      });
-
-      if (!putRes.ok) throw new Error(`File PUT to storage failed (${putRes.status})`);
-      console.log('Uploaded reference to fal storage:', imageUrl);
+      console.log('Compressed to JPEG data URI, length:', imageUrl.length);
 
       // Step 2: Flux Kontext with public URL
       setBtnLoading('img-btn', 'Editing scene with Flux Kontext… (2/2)');
