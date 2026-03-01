@@ -835,7 +835,7 @@ function saveFalKey() {
 }
 
 function getDefaultStyleGuide() {
-  return `Shot by a professional event photographer on a Canon EOS R5 with a 35mm lens. The people look completely real — natural skin texture with visible pores, slight motion blur on moving limbs, clothes with real wrinkles and fabric weight, hair moving slightly, eyes with natural catchlights. Hard directional sunlight casting sharp shadows on the court surface. The branded infrastructure must look premium and architectural — no cheap pop-up tents or plasticky stands. Think Wimbledon hospitality, Porsche Cup paddock, Rolex ATP Tour courtside: dark powder-coated steel frames, natural oak wood surfaces, linen fabric panels, matte black signage with embossed lettering, premium materials throughout. 5-6 people actively engaged, various interactions happening simultaneously, energetic but premium atmosphere. The overall image must be completely indistinguishable from a real photograph taken at a real luxury event. No AI smoothness, no perfect symmetry, no studio lighting.`;
+  return `Shot by a professional event photographer on a Canon EOS R5 with a 35mm lens. The people look completely real — natural skin texture with visible pores, slight motion blur on moving limbs, clothes with real wrinkles and fabric weight, hair moving slightly, eyes with natural catchlights. Hard directional sunlight casting sharp shadows on the ground. The branded infrastructure must look premium and architectural — no cheap pop-up tents or plasticky stands. Think Wimbledon hospitality, Porsche Cup paddock, Rolex ATP Tour courtside: dark powder-coated steel frames, natural oak wood surfaces, linen fabric panels, matte black signage with embossed lettering, premium materials throughout. 5-6 people actively engaged, various interactions happening simultaneously, energetic but premium atmosphere. The overall image must be completely indistinguishable from a real photograph taken at a real luxury event. No AI smoothness, no perfect symmetry, no studio lighting.`;
 }
 
 function savePromptStyleGuide() {
@@ -1506,8 +1506,8 @@ async function proceedToImage() {
   let imgPrompt = selectedIdea.imagePrompt || '';
   // Always regenerate with Claude for best quality
   try {
-    const locName = selectedLocIdx !== null ? locs[selectedLocIdx]?.name : 'Stanglwirt Tennis Court';
-    const locDesc = selectedLocIdx !== null ? locs[selectedLocIdx]?.desc : 'Outdoor clay courts at Hotel Stanglwirt, Kitzbühel mountain panorama';
+    const locName = selectedLocIdx !== null ? locs[selectedLocIdx]?.name : null;
+    const locDesc = selectedLocIdx !== null ? locs[selectedLocIdx]?.desc : null;
     const hasLocPhoto = !!selectedLocB64;
     const hasLogo = !!logoB64;
     const hasProduct = !!productB64;
@@ -1515,7 +1515,11 @@ async function proceedToImage() {
     imgPrompt = await callClaude(`You are briefing an AI image generator (gpt-image-1) to create a photorealistic event activation image that looks like it was shot by a professional event photographer — indistinguishable from a real photo.
 
 CRITICAL CONTEXT:
-${hasLocPhoto ? `- I am providing a REFERENCE PHOTO of the exact location. Build the activation into this exact scene — same sky, same mountains, same court surface, same fence, same trees in the background.` : `- Location: ${locName} — ${locDesc}`}
+${hasLocPhoto
+  ? `- I am providing a REFERENCE PHOTO of the exact location (${locName || 'event venue'}). Build the activation into this exact scene — replicate the exact environment, surfaces, architecture, sky, mountains, and surroundings shown in the photo. Do NOT add tennis courts or clay surfaces unless they are visible in the reference photo.`
+  : locName
+    ? `- Location: ${locName} — ${locDesc}. Describe ONLY this specific setting — its actual surfaces, architecture, and environment.`
+    : `- Location: Hotel Stanglwirt, Kitzbühel, Austria — use an appropriate venue setting.`}
 ${hasLogo ? `- I am providing the BRAND LOGO. Use its exact colors and identity for branded elements (tent, banner, mat).` : ''}
 ${hasProduct ? `- I am providing a PRODUCT REFERENCE IMAGE. Reproduce the exact product shapes, textures, and colors visible in this image.` : ''}
 
@@ -1527,10 +1531,14 @@ Event slot: ${selectedIdea.slot}
 
 WRITE A NATURAL SCENE DESCRIPTION — like briefing a film director, not a camera manual.
 
-${hasLocPhoto ? 'START with: "In the reference photo you can see the location. Please build the following activation into this exact scene:"' : `START with: "At the ${locName} of Hotel Stanglwirt in Kitzbühel, Austria:"`}
+${hasLocPhoto
+  ? `START with: "In the reference photo you can see ${locName || 'the location'}. Please build the following activation into this exact scene:"`
+  : locName
+    ? `START with: "At the ${locName}${locDesc ? ' (' + locDesc + ')' : ''}, Kitzbühel, Austria:"`
+    : `START with: "At Hotel Stanglwirt, Kitzbühel, Austria:"`}
 
 Then describe the scene naturally. Include:
-- The branded setup (tent, station, products displayed)
+- The branded setup (tent, station, products displayed) — appropriate to the location type
 - 2-3 people interacting naturally — caught mid-movement, not posing
 - What each person is doing with their hands/body
 
@@ -1688,7 +1696,7 @@ async function generateImageGPT(prompt) {
 
   if (selectedLocB64) {
     // Tell the model exactly what to do with the location photo
-    finalPrompt = `USE THE PROVIDED REFERENCE PHOTO AS THE EXACT BASE SCENE. Replicate this specific location precisely: same architecture, same court surface, same mountain backdrop, same trees, same fencing, same lighting angle and color. DO NOT invent a generic alpine setting — reproduce THIS exact location.
+    finalPrompt = `USE THE PROVIDED REFERENCE PHOTO AS THE EXACT BASE SCENE. Replicate this specific location precisely: same architecture, same surfaces, same mountain backdrop, same trees, same fencing, same lighting angle and color. DO NOT invent a generic alpine setting — reproduce THIS exact location.
 
 PLACE THIS ACTIVATION INTO THAT EXACT SCENE:
 ${prompt}
