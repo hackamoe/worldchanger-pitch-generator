@@ -551,6 +551,7 @@ input[type="file"]{display:none;}
           <div class="field">
             <label>Anthropic Key (Claude)</label>
             <input type="password" id="settings-anth" placeholder="sk-ant-..." class="mono" />
+            <div style="font-size:10px;color:var(--text-dim);margin-top:4px">Einmal eintragen → ganzes Team kann sofort arbeiten</div>
           </div>
           <div class="field">
             <label>OpenAI Key (gpt-image-1)</label>
@@ -756,20 +757,7 @@ let tpls = { ...DEFAULT_TEMPLATES };
 // ═══════════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════════
-// ─── TEAM CONFIG — API Keys hier eintragen ───────────────────────
-// Dein Team braucht nichts einzugeben. Keys werden beim Start auto-gesetzt.
-const TEAM_CONFIG = {
-  anthropic_key: '',   // sk-ant-... hier eintragen
-  openai_key:    '',   // sk-proj-... hier eintragen
-  fal_key:       '',   // fal-... hier eintragen
-};
-// ─────────────────────────────────────────────────────────────────
-
 window.addEventListener('load', () => {
-  // Team Keys automatisch setzen — überschreibt was im Browser gespeichert ist
-  if (TEAM_CONFIG.anthropic_key) localStorage.setItem('wc_anth', TEAM_CONFIG.anthropic_key);
-  if (TEAM_CONFIG.openai_key)    localStorage.setItem('wc_oai',  TEAM_CONFIG.openai_key);
-  if (TEAM_CONFIG.fal_key)       localStorage.setItem('wc_fal',  TEAM_CONFIG.fal_key);
 
   document.getElementById('pw-input').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
 });
@@ -796,24 +784,37 @@ function doLogout() {
   document.getElementById('login-error').textContent = '';
 }
 
-function saveApiKeys() {
+async function saveApiKeys() {
   const anth = document.getElementById('settings-anth').value.trim();
-  const oai = document.getElementById('settings-oai').value.trim();
+  const oai  = document.getElementById('settings-oai').value.trim();
+  const fal  = document.getElementById('settings-fal').value.trim();
+  // In Supabase speichern — sicher, geteilt mit dem ganzen Team
+  const saves = [];
+  if (anth) saves.push(setSetting('api_anth', anth));
+  if (oai)  saves.push(setSetting('api_oai',  oai));
+  if (fal)  saves.push(setSetting('api_fal',  fal));
+  await Promise.all(saves);
+  // Auch lokal cachen für diese Session
   if (anth) localStorage.setItem('wc_anth', anth);
-  if (oai) localStorage.setItem('wc_oai', oai);
-  stat('keys-status', 'success', '✓ Keys saved. Ready to use.');
+  if (oai)  localStorage.setItem('wc_oai',  oai);
+  if (fal)  localStorage.setItem('wc_fal',  fal);
+  stat('keys-status', 'success', '✓ Keys gespeichert — Team kann sofort loslegen.');
 }
 
-function prefillApiKeyFields() {
-  const anth = localStorage.getItem('wc_anth');
-  const oai = localStorage.getItem('wc_oai');
-  const fal = localStorage.getItem('wc_fal');
+async function prefillApiKeyFields() {
+  // Aus Supabase laden — ein Admin speichert, alle haben die Keys
+  const [anth, oai, fal] = await Promise.all([
+    getSetting('api_anth'), getSetting('api_oai'), getSetting('api_fal')
+  ]);
+  if (anth) localStorage.setItem('wc_anth', anth);
+  if (oai)  localStorage.setItem('wc_oai',  oai);
+  if (fal)  localStorage.setItem('wc_fal',  fal);
   const sa = document.getElementById('settings-anth');
   const so = document.getElementById('settings-oai');
   const sf = document.getElementById('settings-fal');
-  if (sa && anth) sa.value = anth;
-  if (so && oai) so.value = oai;
-  if (sf && fal) sf.value = fal;
+  if (sa && anth) sa.value = '••••••••••••' + anth.slice(-4);
+  if (so && oai)  so.value = '••••••••••••' + oai.slice(-4);
+  if (sf && fal)  sf.value = '••••••••••••' + fal.slice(-4);
 
   // Restore engine selection
   const engine = localStorage.getItem('wc_img_engine') || 'gpt';
@@ -880,6 +881,15 @@ async function changePassword() {
 // INIT
 // ═══════════════════════════════════════════
 async function initApp() {
+  // API Keys aus Supabase in localStorage cachen — funktioniert für alle Team-Mitglieder
+  try {
+    const [anth, oai, fal] = await Promise.all([
+      getSetting('api_anth'), getSetting('api_oai'), getSetting('api_fal')
+    ]);
+    if (anth) localStorage.setItem('wc_anth', anth);
+    if (oai)  localStorage.setItem('wc_oai',  oai);
+    if (fal)  localStorage.setItem('wc_fal',  fal);
+  } catch(e) { console.warn('Keys konnten nicht geladen werden:', e); }
   stat('gen-status','info','Loading settings from Supabase…');
   await loadAllSettings();
   renderPackageSelect();
