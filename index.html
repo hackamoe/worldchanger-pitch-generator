@@ -229,16 +229,8 @@ input[type="file"]{display:none;}
     </div>
     <div class="login-error" id="login-error"></div>
     <div class="divider"></div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;letter-spacing:0.06em;text-transform:uppercase;">API Keys (saved locally in browser)</div>
-    <div class="api-keys-grid">
-      <div class="field" style="margin-bottom:0">
-        <label>Anthropic Key</label>
-        <input type="password" id="login-anth" placeholder="sk-ant-..." class="mono" style="font-size:11px;" />
-      </div>
-      <div class="field" style="margin-bottom:0">
-        <label>OpenAI Key</label>
-        <input type="password" id="login-oai" placeholder="sk-..." class="mono" style="font-size:11px;" />
-      </div>
+    <div id="login-keys-hint" style="display:none;font-size:11px;color:var(--text-dim);padding:8px 12px;border:1px solid var(--border);background:var(--surface2)">
+      API Keys sind bereits konfiguriert.
     </div>
     <button class="btn btn-primary" onclick="doLogin()" style="margin-top:20px">Enter →</button>
   </div>
@@ -286,9 +278,15 @@ input[type="file"]{display:none;}
                 <div class="logo-preview-box" id="logo-preview-box">
                   <span class="preview-loading">Auto</span>
                 </div>
-                <label class="upload-label" for="logo-upload-input" style="margin-top:6px;width:64px;justify-content:center;font-size:9px;padding:4px 6px;">↑ Upload</label>
-                <input type="file" id="logo-upload-input" accept="image/*" onchange="handleManualUpload(this,'logo')" />
-                <button class="btn btn-danger" onclick="clearUpload('logo')" id="logo-clear-btn" style="display:none;margin-top:4px;width:64px;font-size:9px;padding:4px;">✕ Clear</button>
+                <div style="display:flex;gap:4px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+                  <input type="text" id="logo-url-input" placeholder="Logo URL eingeben…"
+                    style="flex:1;min-width:120px;padding:3px 6px;background:var(--bg-card,var(--surface2));border:1px solid var(--border);color:var(--text);border-radius:3px;font-size:10px"
+                    oninput="handleLogoUrl(this.value)" />
+                  <label class="upload-label" for="logo-upload-input" style="white-space:nowrap;font-size:9px;padding:4px 6px;">↑ Upload</label>
+                  <input type="file" id="logo-upload-input" accept="image/*" onchange="handleManualUpload(this,'logo')" />
+                  <button class="btn btn-danger" onclick="clearUpload('logo')" id="logo-clear-btn" style="display:none;font-size:9px;padding:4px 6px;">✕</button>
+                </div>
+                <div style="font-size:9px;color:var(--text-dim);margin-top:3px">Tipp: clearbit.com/logo/mercedes.de</div>
               </div>
               <div style="flex:1">
                 <div class="preview-label" style="margin-bottom:4px">Product Image <span style="color:var(--green);font-size:9px" id="product-status-badge"></span></div>
@@ -758,21 +756,27 @@ let tpls = { ...DEFAULT_TEMPLATES };
 // ═══════════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════════
+// ─── TEAM CONFIG — API Keys hier eintragen ───────────────────────
+// Dein Team braucht nichts einzugeben. Keys werden beim Start auto-gesetzt.
+const TEAM_CONFIG = {
+  anthropic_key: '',   // sk-ant-... hier eintragen
+  openai_key:    '',   // sk-proj-... hier eintragen
+  fal_key:       '',   // fal-... hier eintragen
+};
+// ─────────────────────────────────────────────────────────────────
+
 window.addEventListener('load', () => {
-  const a = localStorage.getItem('wc_anth');
-  const o = localStorage.getItem('wc_oai');
-  if (a) document.getElementById('login-anth').value = a;
-  if (o) document.getElementById('login-oai').value = o;
+  // Team Keys automatisch setzen — überschreibt was im Browser gespeichert ist
+  if (TEAM_CONFIG.anthropic_key) localStorage.setItem('wc_anth', TEAM_CONFIG.anthropic_key);
+  if (TEAM_CONFIG.openai_key)    localStorage.setItem('wc_oai',  TEAM_CONFIG.openai_key);
+  if (TEAM_CONFIG.fal_key)       localStorage.setItem('wc_fal',  TEAM_CONFIG.fal_key);
+
   document.getElementById('pw-input').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
 });
 
 async function doLogin() {
   const pw = document.getElementById('pw-input').value.trim();
-  const anth = document.getElementById('login-anth').value.trim();
-  const oai = document.getElementById('login-oai').value.trim();
   if (!pw) { document.getElementById('login-error').textContent = 'Enter access code.'; return; }
-  if (anth) localStorage.setItem('wc_anth', anth);
-  if (oai) localStorage.setItem('wc_oai', oai);
   let storedPw = await getSetting('password');
   if (!storedPw) storedPw = DEFAULT_PW;
   if (pw === storedPw) {
@@ -951,6 +955,38 @@ function handleManualUpload(input, type) {
     }
   };
   reader.readAsDataURL(file);
+}
+
+function handleLogoUrl(url) {
+  const clean = (url || '').trim();
+  if (!clean.startsWith('http')) return;
+  const img = new window.Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    try {
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      c.getContext('2d').drawImage(img, 0, 0);
+      const b64 = c.toDataURL('image/png').split(',')[1];
+      localStorage.setItem('wc_logo_manual', b64);
+      localStorage.setItem('wc_logo_manual_mime', 'image/png');
+      const box = document.getElementById('logo-preview-box');
+      if (box) box.innerHTML = '<img src="data:image/png;base64,' + b64 + '" style="max-width:100%;max-height:100%;object-fit:contain;" />';
+      const badge = document.getElementById('logo-status-badge');
+      if (badge) badge.textContent = '✓ URL';
+      document.getElementById('logo-clear-btn').style.display = 'inline-block';
+    } catch(e) {
+      // CORS blocked — URL direkt als src verwenden
+      const box = document.getElementById('logo-preview-box');
+      if (box) box.innerHTML = '<img src="' + clean + '" style="max-width:100%;max-height:100%;object-fit:contain;" />';
+      localStorage.setItem('wc_logo_url_direct', clean);
+    }
+  };
+  img.onerror = () => {
+    const badge = document.getElementById('logo-status-badge');
+    if (badge) { badge.textContent = '✗ nicht erreichbar'; badge.style.color = 'var(--red)'; }
+  };
+  img.src = clean;
 }
 
 function clearUpload(type) {
